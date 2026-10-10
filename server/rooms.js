@@ -10,8 +10,27 @@ import { assignCards, normalizeRarity, DEFAULT_RARITY } from './cards.js';
 
 /** Milliseconds we wait after the dealer drops before transferring control. */
 export const DEALER_GRACE_MS = Number(process.env.DEALER_GRACE_MS) || 30_000;
-/** Fully-disconnected rooms older than this get swept. */
-const ROOM_TTL_MS = 2 * 60 * 60 * 1000; // 2 h
+/**
+ * A never-started lobby is deleted this soon after its LAST player disconnects.
+ * The short grace (not instant) absorbs a reload or a brief network blip so the
+ * creator refreshing the page doesn't nuke the room before the socket reopens.
+ */
+export const EMPTY_LOBBY_GRACE_MS = Number(process.env.EMPTY_LOBBY_GRACE_MS) || 10_000;
+/**
+ * How long a fully-disconnected room survives before it gets swept.
+ * The TTL is phase-aware: a game in progress (`dealt`) lingers long enough for
+ * players to rejoin after a disconnect, but a room that never started (`lobby`)
+ * is abandoned the moment everyone leaves — there is nothing worth keeping, and
+ * holding it needlessly reserves its 4-letter code. A short grace still absorbs
+ * transient drops (a phone changing networks, a quick reload).
+ */
+const ROOM_TTL_MS = 2 * 60 * 60 * 1000;   // 2 h — a dealt game, awaiting rejoin
+const LOBBY_TTL_MS = 10 * 60 * 1000;      // 10 min — a never-started lobby
+
+/** TTL for a room given its phase. */
+function ttlForPhase(phase) {
+  return phase === 'lobby' ? LOBBY_TTL_MS : ROOM_TTL_MS;
+}
 
 /** Letters used for the room code (no I/O to avoid ambiguity when typing). */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -40,6 +59,7 @@ const rooms = new Map();
  * @property {string} creatorId  the original creator (never changes)
  * @property {string} dealerId   who currently holds the Deal button
  * @property {?NodeJS.Timeout} dealerTimer  pending transfer timer
+ * @property {?NodeJS.Timeout} emptyTimer   pending delete of an empty lobby
  * @property {number} createdAt
  * @property {?number} dealtAt
  */
@@ -92,6 +112,7 @@ export function createRoom(creatorName, rarity = DEFAULT_RARITY) {
     creatorId: creator.id,
     dealerId: creator.id,
     dealerTimer: null,
+    emptyTimer: null,
     createdAt: Date.now(),
     dealtAt: null,
   };
@@ -152,6 +173,7 @@ export function dealRoom(room, byPlayerId, { allowRedeal = false } = {}) {
   room.phase = 'dealt';
   room.dealtAt = Date.now();
   clearDealerTimer(room);
+  clearEmptyTimer(room); // a dealt game is never swept as an "empty lobby"
   return { ok: true, room };
 }
 
@@ -198,13 +220,14 @@ export function closeRoom(room, byPlayerId) {
   }
   room.phase = 'closed';
   clearDealerTimer(room);
+  clearEmptyTimer(room);
   return { ok: true, room };
 }
 
 /** Actually deletes a closed room from memory (after clients were notified). */
 export function deleteRoom(code) {
   const room = getRoom(code);
-  if (room) clearDealerTimer(room);
+  if (room) { clearDealerTimer(room); clearEmptyTimer(room); }
   rooms.delete(String(code || '').toUpperCase());
 }
 
@@ -214,6 +237,13 @@ function clearDealerTimer(room) {
   if (room.dealerTimer) {
     clearTimeout(room.dealerTimer);
     room.dealerTimer = null;
+  }
+}
+
+function clearEmptyTimer(room) {
+  if (room.emptyTimer) {
+    clearTimeout(room.emptyTimer);
+    room.emptyTimer = null;
   }
 }
 
@@ -230,6 +260,8 @@ function nextConnectedPlayer(room, exceptId) {
  */
 export function markConnected(room, player, onChange) {
   player.connected = true;
+  // Someone is back: cancel any pending delete of this (previously empty) lobby.
+  clearEmptyTimer(room);
   if (room.phase === 'lobby' && player.id === room.creatorId && room.dealerId !== room.creatorId) {
     // The creator reclaims control on return (transfer is only "while away").
     room.dealerId = room.creatorId;
@@ -240,12 +272,28 @@ export function markConnected(room, player, onChange) {
 
 /**
  * Marks a player as disconnected. If it's the current dealer in the lobby,
- * starts the grace timer to transfer control.
+ * starts the grace timer to transfer control. If this empties a never-started
+ * lobby entirely, schedules the room's deletion after a short grace.
  * @param {(room:Room)=>void} onChange
+ * @param {(code:string)=>void} [onDelete]  called once the empty lobby is deleted
  */
-export function markDisconnected(room, player, onChange) {
+export function markDisconnected(room, player, onChange, onDelete) {
   player.connected = false;
   player.lastSeen = Date.now();
+
+  // A never-started lobby with nobody left has nothing worth keeping: delete it
+  // after a short grace (so a reload/blip doesn't drop it mid-reconnect).
+  if (room.phase === 'lobby' && !room.players.some((p) => p.connected) && !room.emptyTimer) {
+    room.emptyTimer = setTimeout(() => {
+      room.emptyTimer = null;
+      // Re-check: still a lobby, still empty (nobody reconnected in the meantime).
+      if (room.phase !== 'lobby' || room.players.some((p) => p.connected)) return;
+      clearDealerTimer(room);
+      rooms.delete(room.code);
+      onDelete?.(room.code);
+    }, EMPTY_LOBBY_GRACE_MS);
+    room.emptyTimer.unref?.();
+  }
 
   if (room.phase === 'lobby' && player.id === room.dealerId && !room.dealerTimer) {
     room.dealerTimer = setTimeout(() => {
@@ -325,13 +373,17 @@ export function toPublicRoom(room, viewer = null) {
 
 // ---- Cleanup of abandoned rooms --------------------------------------------
 
-/** Deletes rooms where everyone has been disconnected longer than the TTL. */
+/**
+ * Deletes rooms where everyone has been disconnected longer than the TTL for
+ * the room's phase. A never-started lobby is swept quickly (LOBBY_TTL_MS); a
+ * dealt game lingers (ROOM_TTL_MS) so players can rejoin after a drop.
+ */
 export function sweepRooms(now = Date.now()) {
   for (const [code, room] of rooms) {
     const anyConnected = room.players.some((p) => p.connected);
     if (anyConnected) continue;
     const lastActivity = Math.max(room.createdAt, ...room.players.map((p) => p.lastSeen));
-    if (now - lastActivity > ROOM_TTL_MS) {
+    if (now - lastActivity > ttlForPhase(room.phase)) {
       clearDealerTimer(room);
       rooms.delete(code);
     }

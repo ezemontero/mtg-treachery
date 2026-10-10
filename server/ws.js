@@ -100,7 +100,9 @@ export function attachWebSocket(httpServer) {
       const stillConnectedElsewhere = [...(byRoom.get(code) || [])].some(
         (other) => other._playerId === ws._playerId && other.readyState === other.OPEN,
       );
-      if (p && !stillConnectedElsewhere) markDisconnected(r, p, broadcast);
+      // If this leaves a never-started lobby empty, markDisconnected schedules
+      // its deletion; onDelete tears down any lingering sockets for that code.
+      if (p && !stillConnectedElsewhere) markDisconnected(r, p, broadcast, closeRoomSockets);
     });
   });
 
