@@ -109,7 +109,10 @@ function close() {
   stopFlipping();
 }
 
-async function open() {
+export async function openExample() {
+  // Mount the modal on demand — on pages that don't preload example.js, this is
+  // the first time it exists (the install() setTimeout hasn't fired yet).
+  if (!document.getElementById('example-modal')) renderModal();
   const modal = document.getElementById('example-modal');
   if (!modal) return;
   modal.classList.remove('hidden');
@@ -128,7 +131,8 @@ async function open() {
   }
 }
 
-function renderModal() {
+// Ensures the example modal exists in the DOM; safe to call repeatedly.
+export function renderModal() {
   document.getElementById('example-modal')?.remove();
   document.body.insertAdjacentHTML('beforeend', modalHtml());
   const modal = document.getElementById('example-modal');
@@ -137,35 +141,20 @@ function renderModal() {
 }
 
 function install() {
-  const actions = document.querySelector('.brand .header-actions');
-  if (!actions) return; // header not ready or no rules.js on this page
-
-  let btn = document.getElementById('example-btn');
-  if (!btn) {
-    btn = document.createElement('button');
-    btn.type = 'button';
-    btn.id = 'example-btn';
-    btn.className = 'rules-btn'; // reuse the header pill styling
-    btn.addEventListener('click', open);
-    // Order: Rules first, then Example.
-    actions.appendChild(btn);
-  }
-  btn.textContent = t('example.btn');
-  btn.setAttribute('aria-label', t('example.btn'));
-
+  // The example is launched from inside the Rules modal (rules.js), so there is
+  // no header button; we only need the modal mounted and kept in sync.
+  if (!document.querySelector('.brand')) return;
   renderModal();
 }
 
 onLocaleChange(() => {
-  const btn = document.getElementById('example-btn');
-  if (btn) { btn.textContent = t('example.btn'); btn.setAttribute('aria-label', t('example.btn')); }
   const modal = document.getElementById('example-modal');
   const wasOpen = modal && !modal.classList.contains('hidden');
   renderModal();
-  if (wasOpen) open();
+  if (wasOpen) openExample();
 });
 
-// rules.js builds `.header-actions`; wait a tick so it exists first.
+// rules.js builds the header; wait a tick so the DOM is ready.
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => setTimeout(install, 0));
 } else {

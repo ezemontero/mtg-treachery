@@ -15,6 +15,19 @@ function countCell(n) {
   return n === 0 ? '—' : String(n);
 }
 
+// Role badge icons, reused as the inline symbol shown after each role name.
+const ROLE_ICONS = {
+  leader: '/assets/roles/leader.png',
+  guardian: '/assets/roles/guardian.png',
+  assassin: '/assets/roles/assassin.png',
+  traitor: '/assets/roles/traitor.png',
+};
+
+// A role's symbol, parenthesized, for inline use in the win-condition lines.
+function roleSymbol(role) {
+  return `(<img class="role-symbol" src="${ROLE_ICONS[role]}" alt="" />)`;
+}
+
 function roleMixTable() {
   const head = `
     <tr>
@@ -48,12 +61,13 @@ function rulesModalHtml() {
       </ul>
       <h3 class="rules-heading">${t('info.winConditions')}</h3>
       <ul class="rules-list">
-        <li>${t('info.win.leader')}</li>
-        <li>${t('info.win.assassins')}</li>
-        <li>${t('info.win.traitor')}</li>
+        <li>${t('info.win.leader', { leader: roleSymbol('leader'), guardian: roleSymbol('guardian') })}</li>
+        <li>${t('info.win.assassins', { assassin: roleSymbol('assassin') })}</li>
+        <li>${t('info.win.traitor', { traitor: roleSymbol('traitor') })}</li>
       </ul>
       <h3 class="rules-heading">${t('info.roles')}</h3>
       ${roleMixTable()}
+      <button id="rules-example-btn" class="secondary" type="button">${t('example.btn')}</button>
       <h3 class="rules-heading">${t('info.abilities')}</h3>
       <ul class="rules-list">
         <li>${t('info.unveil')}</li>
@@ -85,14 +99,21 @@ function renderRulesModal() {
   if (wasOpen) modal.classList.remove('hidden');
   document.getElementById('rules-close').addEventListener('click', closeRules);
   modal.addEventListener('click', (e) => { if (e.target === modal) closeRules(); });
+
+  // The example lives one level deeper: close Rules, then open the example popup.
+  document.getElementById('rules-example-btn')?.addEventListener('click', async () => {
+    closeRules();
+    const { openExample } = await import('/example.js');
+    openExample();
+  });
 }
 
-/** Bottom row that holds the language selector. Pages may supply #lang-slot. */
-function ensureLangSlot(fallback) {
+/** Footer row that holds the language selector. Pages may supply #lang-slot. */
+function ensureLangSlot() {
   let slot = document.getElementById('lang-slot');
   if (slot) return slot;
   const app = document.querySelector('.app');
-  if (!app) return fallback;
+  if (!app) return null;
   slot = document.createElement('div');
   slot.id = 'lang-slot';
   slot.className = 'lang-slot';
@@ -106,6 +127,15 @@ function install() {
   const brand = document.querySelector('.brand');
   if (!brand) return;
 
+  // Left side of the header holds the Rules button.
+  let headerLeft = brand.querySelector('.header-left');
+  if (!headerLeft) {
+    headerLeft = document.createElement('div');
+    headerLeft.className = 'header-left';
+    brand.appendChild(headerLeft);
+  }
+
+  // Right side of the header is reserved for the Cards button (gallery.js).
   let actions = brand.querySelector('.header-actions');
   if (!actions) {
     actions = document.createElement('div');
@@ -113,11 +143,10 @@ function install() {
     brand.appendChild(actions);
   }
 
-  // Language sits on the bottom row (a page may already provide #lang-slot).
-  // The card gallery button shares that row, on the right.
-  const langHost = ensureLangSlot(actions);
+  // The language selector lives in the footer, next to the app version.
+  const langHost = ensureLangSlot();
   let langSelect = document.getElementById('lang-select');
-  if (!langSelect) {
+  if (!langSelect && langHost) {
     langSelect = document.createElement('select');
     langSelect.id = 'lang-select';
     langSelect.className = 'lang-select';
@@ -130,9 +159,11 @@ function install() {
     langSelect.addEventListener('change', () => setLocale(langSelect.value));
     langHost.appendChild(langSelect);
   }
-  langSelect.value = getLocale();
-  langSelect.setAttribute('aria-label', t('lang.label'));
-  langSelect.title = t('lang.label');
+  if (langSelect) {
+    langSelect.value = getLocale();
+    langSelect.setAttribute('aria-label', t('lang.label'));
+    langSelect.title = t('lang.label');
+  }
 
   let rulesBtn = document.getElementById('rules-btn');
   if (!rulesBtn) {
@@ -141,7 +172,7 @@ function install() {
     rulesBtn.id = 'rules-btn';
     rulesBtn.className = 'rules-btn';
     rulesBtn.addEventListener('click', openRules);
-    actions.appendChild(rulesBtn);
+    headerLeft.appendChild(rulesBtn);
   }
   rulesBtn.textContent = t('rules.btn');
   rulesBtn.setAttribute('aria-label', t('rules.btn'));

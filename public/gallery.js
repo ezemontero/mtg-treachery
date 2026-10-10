@@ -162,8 +162,9 @@ function renderModal() {
 }
 
 function install() {
-  const slot = document.getElementById('lang-slot');
-  if (!slot) return;
+  // Sit in the top-right header actions (Rules is top-left, built by rules.js).
+  const actions = document.querySelector('.brand .header-actions');
+  if (!actions) return;
 
   let btn = document.getElementById('gallery-btn');
   if (!btn) {
@@ -172,7 +173,7 @@ function install() {
     btn.id = 'gallery-btn';
     btn.className = 'rules-btn';
     btn.addEventListener('click', open);
-    slot.appendChild(btn);
+    actions.appendChild(btn);
   }
   renderModal();
 }
