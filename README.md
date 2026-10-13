@@ -1,188 +1,216 @@
-# 🎴 MTG Treachery (LAN)
+# 🎴 MTG Treachery
 
 A homemade web app to play the hidden-role Magic: The Gathering variant
-**[MTG Treachery](https://mtgtreachery.net)**. It secretly deals the identities
-(Leader, Guardian, Assassin, Traitor) to each player on their phone. It does
-**not run the Magic game itself** (life totals, turns, etc.): it only deals
-roles secretly and keeps the session alive.
+**[MTG Treachery](https://mtgtreachery.net)**. It secretly deals each player an
+identity (Leader, Guardian, Assassin or Traitor) with its card, on their own
+phone. It does **not run the Magic game itself** (life totals, turns, etc.): it
+deals the identities, keeps them secret, and shows what the table has revealed.
 
-Meant to be played on the **same WiFi network**: run it on one computer and
-everyone else joins from their phone by scanning a QR code.
+One computer hosts the server and everyone else joins from their phone, on the
+same WiFi, by scanning a QR code; nobody installs anything.
 
-## Requirements
+## How to play
 
-- **Node.js 24 or newer** (uses the native `WebSocket`, `crypto` and `--watch`).
-- All players on the **same local network** (WiFi).
+1. Someone opens the app, enters their name, picks the **card rarity** and taps
+   **Create room** → a **4-letter code** and a **QR code** appear.
+2. Everyone else scans the QR (or types the code on the home screen) and enters
+   their name.
+3. Once everyone is in (**4 to 8 players**), whoever created the room taps
+   **Start**. Until then, the screen says how many players are missing.
+   - Every seat in the room is dealt a role, so the creator can remove one with
+     **✕** next to the name (someone who joined twice, or left). Offline players
+     are flagged before dealing.
+4. Each player sees **their card face down**: tap it to flip it and see your
+   identity; tap again to hide it. It hides itself after 10 seconds, or when the
+   phone locks or the app goes to the background.
+   - The **Leader** is public (it's open information in the game): their card
+     stays face up and everyone sees a crown next to their name.
+5. When you use your **Unveil** ability at the table, flip the **Unveil** switch
+   and confirm: your identity becomes **public**. Every phone shows your role
+   icon, and anyone can tap your name to see your card. Turning the switch off
+   hides it again, but the table has already seen it.
+6. When you're eliminated, tap **Surrender** and accept: you're marked
+   **Defeated** and your identity is revealed until the next deal. The line above
+   the player list counts the Traitors, Assassins and Guardians still in play.
 
-## Running it
+Whoever controls the room also gets:
+
+- **Restart**: deals fresh identities to the same players, no need to rejoin.
+  Great for several games in a row.
+- **End Game**: closes the room; everyone returns to the start screen.
+
+Every screen has **Rules** (with an example 5-player table) and **Cards** (the
+whole card gallery, by role and rarity) in the header, and the language selector
+(**en-US** / **es-AR**) in the footer.
+
+### Card rarity
+
+Rarity reflects how **complex** an identity is to play, not how powerful it is.
+The choice is a ceiling: **Uncommon** deals only uncommon cards, **Rare** adds the
+rares, and **Mythic** adds the mythics. Each player gets a different card. The
+*Special* cards appear in the gallery but are never dealt.
+
+## Hosting
+
+### From source
+
+Requirements: **Node.js 24 or newer**, and every player on the **same WiFi**.
 
 ```bash
 npm install
 npm start
 ```
 
-On startup, the console prints something like:
+The console prints the addresses and a QR code:
 
 ```
   On this machine:   http://localhost:3000
   Share on the LAN:  http://192.168.1.47:3000   ← share this one
 ```
 
-- On **your** computer, open `http://localhost:3000`.
-- **Everyone else** goes to the LAN URL (`http://192.168.1.x:3000`) or, more
-  easily, scans the **QR code** shown in the room.
+- Players scan the QR (in the console or in the room) or open the LAN address.
+- To show a big QR on the host's screen, open `http://localhost:3000/host`.
+- To use another port: `PORT=4000 npm start`.
 
-> The default port is `3000`. To change it: `PORT=4000 npm start`.
+> **macOS firewall:** the first time a phone connects, macOS may ask whether to
+> allow incoming connections for `node`. Allow it, or phones can't reach the
+> server.
 
-## Standalone executables (no Node install needed)
+### Standalone executables (no Node needed)
 
-If you'd rather not run `npm start`, you can build double-click executables for
-the **host** (the person who runs the server). Players still just scan the QR —
-they never install anything.
+For hosts who'd rather not install Node: download a ready-made executable from
+[Releases](https://github.com/ezemontero/mtg-treachery/releases), or build them:
 
 ```bash
 npm run package
 ```
 
-This produces, in `dist/`:
+This produces, in `dist/`, two flavors for macOS (Apple Silicon) and Windows:
 
-- `mtg-treachery-macos-arm64` — macOS (Apple Silicon)
-- `mtg-treachery-macos-x64` — macOS (Intel)
-- `mtg-treachery-win-x64.exe` — Windows
+| Files | Card images |
+|---|---|
+| `mtg-treachery-macos-arm64`, `mtg-treachery-win-x64.exe` | Loaded from mtgtreachery.net, so players' phones need internet |
+| `mtg-treachery-embedded-macos-arm64`, `mtg-treachery-embedded-win-x64.exe` | Bundled (bigger file), so it works fully offline on the WiFi |
 
-Double-click the one for your machine. It starts the server, prints a QR in the
-console, and **opens your browser** at the host page automatically. Keep the
-console window open — closing it stops the server.
+Double-click the one for your machine: it starts the server, opens the host page
+with a big QR in your browser, and keeps the computer from going to sleep while
+it runs. Keep the console window open; closing it stops the server.
 
-**First-launch security warnings (the binaries are unsigned):**
+**First-launch warnings (the binaries are unsigned):**
 
-- **macOS:** Gatekeeper blocks it the first time. Right-click the file → **Open**
-  (or run `xattr -d com.apple.quarantine mtg-treachery-macos-arm64` once).
+- **macOS:** the first launch is blocked. Open **System Settings → Privacy &
+  Security** and click **Open Anyway**, or run this once:
+  `xattr -d com.apple.quarantine mtg-treachery-macos-arm64`.
 - **Windows:** SmartScreen shows "unknown publisher" → **More info → Run anyway**.
 
-> The build runs on your Mac and cross-compiles all three (including the Windows
-> `.exe`). The first `npm run package` downloads Node base binaries (~60 MB each),
-> so it needs internet once; later builds are cached.
+> The build runs on a Mac and cross-compiles the Windows `.exe`. The first
+> `npm run package` downloads Node base binaries (~60 MB each), so it needs
+> internet once; later builds are cached.
 
-## Hosting from an Android phone (Termux)
+## Good to know
 
-Android can't run the executables, but it can run the server from source using
-**[Termux](https://termux.dev)** (a terminal app):
-
-```bash
-pkg update && pkg install nodejs git      # Termux's package manager
-git clone <repo-url> mtg-treachery
-cd mtg-treachery
-npm install
-npm start
-```
-
-Then share the printed LAN URL / QR. Tips:
-- The phone must be on the same WiFi as the players.
-- Run `termux-wake-lock` so the server keeps running when the screen locks.
-
-## How to play
-
-1. Someone opens the app, enters their name and taps **Create room** → a **4-letter code** and a **QR code** appear.
-2. Everyone else scans the QR (or types the code) and enters their name.
-3. Once everyone is in (**4 to 8 players**), whoever created the room taps **Start**.
-   - Every seat in the room is dealt a role, so the creator can remove one with **✕** next to the
-     name (someone who joined twice, or left). Offline players are flagged before dealing.
-   - The room holds at most 8 players.
-4. Each player sees **their card face down**: tap it to flip it and see your role; tap again to hide it.
-   - It **hides itself** after 10 seconds or when the phone locks / the app goes to the background.
-   - The **Leader** is marked publicly for everyone (it's open information in the game).
-5. When you use your **Unveil** ability at the table, flip the **Unveil** switch and confirm:
-   your card stays face-up and your identity becomes **public** — every phone shows your role icon,
-   and anyone can tap your name to see your card. Turning the switch off hides it again, but the
-   table has already seen it.
-
-### Restart / End Game
-
-While in the role view, whoever created the room has two extra controls:
-
-- **Restart** — reshuffles the roles for the same players, no need to rejoin. Great for playing several games in a row. Everyone's card flips back down.
-- **End Game** — closes the room; everyone returns to the start screen.
-
-## Important notes
-
-- **Reconnection:** if you refresh or close the browser, you get your same seat and same role back
-  when you return (a token is stored in the browser). No need to rejoin.
-- **Who starts the game:** only whoever created the room sees the **Start** button. If they
-  disconnect for ~30 s before starting, control passes to the next player automatically; if they
-  come back in time, they get it back.
-- **Restarting the server = new game.** State lives in memory; if you kill the process, rooms are lost.
-  Players who were already dealt keep their card on their phone (it's cached), so the game at the
-  table can go on — the room screen says the room is gone; to deal again, create a new room. This
-  also covers hosts that sleep and lose memory, like Render's free tier.
-- **Roles are truly secret:** the server never sends a player another player's role. Not even the
-  browser dev tools can reveal someone else's deal.
-
-### macOS: firewall permission
-
-The **first time** someone connects from another device, macOS may ask whether to allow incoming
-connections for `node`. You must **allow it** so phones can reach the server.
-
-## Rules: role distribution by player count
-
-| Players | Leader | Traitor | Assassin | Guardian |
-|:-------:|:------:|:-------:|:--------:|:--------:|
-| 4 | 1 | 1 | 2 | 0 |
-| 5 | 1 | 1 | 2 | 1 |
-| 6 | 1 | 1 | 3 | 1 |
-| 7 | 1 | 1 | 3 | 2 |
-| 8 | 1 | 2 | 3 | 2 |
+- **Reconnection:** if you refresh or close the browser, you get your same seat
+  and identity back (a token is stored in the browser), and the home screen
+  offers **Rejoin your game**. The seat lives in that browser: another device
+  can't take it over.
+- **Who controls the room:** whoever created it. If they're away for ~30 s before
+  Start, control passes to the next player and returns when they come back. Once
+  the roles are dealt, control doesn't move: if the creator leaves for good,
+  nobody else can Restart or End the game (create a new room instead).
+- **State lives in memory.** If the server restarts, its rooms are lost, but
+  every player keeps their card on their phone (it's cached) and the room screen
+  says the room is gone, so the game at the table can go on. To deal again,
+  create a new room.
+- **Cleanup:** a room that never started is deleted 10 s after its last player
+  leaves; a dealt game is kept for 2 h so players can come back.
+- **Roles are truly secret:** the server never sends a player another player's
+  concealed identity; not even the browser dev tools can reveal someone else's
+  deal. Only the Leader and players who unveil or are defeated become public. The
+  tests check this for every table size and every viewer.
 
 ## Development
 
 ```bash
 npm run dev     # auto-reload on edit (node --watch)
 npm run lab     # same, and opens the multi-user lab in the browser
-npm test        # dealing tests (official composition + randomness)
+npm test        # dealing, room state + secrecy, card pools, HTTP API + WebSocket, translations
 ```
+
+Other scripts:
+
+- `npm run optimize-cards` converts new card PNGs under `assets/cards` to
+  phone-sized WebP (needs `cwebp` or ImageMagick, and macOS `sips`).
+- `npm run package` builds the executables (it runs `manifest`, `bundle:*` and
+  `package:*`).
 
 ### Multi-user lab
 
 Sessions live in `localStorage`, so two normal tabs on the same origin would
-share a seat. The **lab** (`/lab`, or `npm run lab`) shows 4–8 phone frames in
-one window. Each frame is a different player (`?slot=1` … `?slot=8` namespaces
-the session).
+share a seat. The **lab** (`npm run lab`, then `/lab`) shows 4 to 8 players in
+one window, each on its own phone (`?slot=1` … `?slot=8` namespaces the session).
 
-- **Start table** — creates a room and seats everyone (Ann is the dealer).
-- **Blank phones** — empty home screens so you can walk through create / join.
-- **Pop out** — opens that player in a real window at phone size.
+Each phone has its own device picker. By default the four players get four
+typical phones: iPhone 6.7″ and 6.1″ (Safari), and Android at the two common
+widths, 412 and 360 (Pixel 8 and Pixel 9, Chrome); bigger tables repeat them.
+Each page gets the viewport that browser actually leaves it, so you see what
+fits on screen without scrolling. Phones are drawn at real size and shrink only
+to fit the window (the scale shows in the lab bar); switching a phone's device
+doesn't reload it, and each phone remembers its pick.
 
-You can also emulate users without the grid: open
-`http://localhost:3000/home?slot=alice` and `http://localhost:3000/home?slot=bob`
-in two windows.
+- **Start table**: creates a room and seats everyone (Ann is the dealer), with
+  the chosen player count and rarity.
+- **Blank phones**: empty home screens, to walk through create / join yourself.
+- **Reset**: closes the table and clears every phone.
+- **Pop out**: opens that player in a real window at the same viewport size.
 
-You can shorten the control-handover grace period for testing with
-`DEALER_GRACE_MS=1000 npm start` (default is 30000 ms).
+The lab is only served on `localhost` when started with `--lab`, never on the LAN
+or in packaged builds. You can also emulate players without it: open
+`http://localhost:3000/home?slot=alice` and `…/home?slot=bob` in two windows.
+
+### Environment variables
+
+| Variable | Default | What it does |
+|---|---|---|
+| `PORT` | `3000` | HTTP port |
+| `PUBLIC_URL` | (none) | Base URL for the join QR and links when the server has a public address (otherwise the LAN address is used) |
+| `DEALER_GRACE_MS` | `30000` | How long the creator can be away before control passes on (lobby only) |
+| `EMPTY_LOBBY_GRACE_MS` | `10000` | How long an empty, never-started room survives (absorbs a reload) |
+| `LAB` | (none) | `1` serves the lab, same as `--lab` |
 
 ### Structure
 
 ```
 server/
-  index.js   http+ws startup, serves static files, discovers the LAN IP
-  rooms.js   room/player state, reconnection and control handover
-  deal.js    official role table + shuffling (Fisher–Yates with crypto)
-  api.js     JSON HTTP endpoints
-  ws.js      presence WebSocket + broadcasting the player list
+  index.js       HTTP + WebSocket startup, static files, LAN IP / public URL, console QR
+  api.js         JSON HTTP endpoints
+  ws.js          presence WebSocket; broadcasts each viewer their own view of the room
+  rooms.js       room state: join, deal, unveil, defeat, remove seats, control handover, cleanup
+  deal.js        official role table + Fisher–Yates shuffle with crypto randomness
+  cards.js       card catalog by role and rarity; a unique card per player; gallery
+  keep-awake.js  keeps the host computer awake (packaged builds)
+  *.test.js      node:test suites
 public/
-  index.html landing / create room
-  join.html  join (QR target)
-  room.html  lobby + "my role"
-  lab.html   multi-user emulator (several phones in one window)
-  app.js     session (localStorage), fetch and navigation
-  room.js    socket, lobby, card flip and unveil
-  lab.js     lab shell: seat N isolated iframes
-  styles.css mobile-first styles
+  index.html     home: create, join, rejoin
+  join.html      join (QR target)
+  room.html      lobby + your card
+  host.html      big QR for the host's screen
+  lab.html       multi-user lab
+  app.js         session (localStorage), create/join requests
+  room.js        socket, lobby, card flip, unveil, defeat, restart / end game
+  i18n.js        en-US / es-AR texts
+  rules.js       Rules button + modal, footer language selector
+  gallery.js     card gallery
+  example.js     example 5-player table
+  version.js     version in the footer
+  lab.js         lab: seats N phones as iframes
+  styles.css     mobile-first styles
+assets/
+  cards/         identity cards as WebP: <Role>/<rarity>/, plus extras/ (card back, tokens)
+  roles/         role icons
+scripts/         optimize-cards.js, gen-cards-manifest.js (card list for packaged builds)
 ```
 
-## Scope
+## Not included
 
-This version does: create/join rooms, correct secret dealing, public Leader, card flip,
-public unveil (confirmed, reversible), surrender, removing lobby seats, reconnection, restart and end game.
-
-Left out (possible future improvements): marking eliminated players, automatically computing
-the winner, a Magic life counter, and persisting state to disk to survive restarts.
+Computing the winner automatically, a Magic life counter, and persisting rooms to
+disk to survive restarts.
