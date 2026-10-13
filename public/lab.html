@@ -42,6 +42,12 @@
       display: block;
     }
     .lab-brand span { color: var(--accent-hi); }
+    .lab-device {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .lab-bar .segmented { width: auto; }
     .lab-bar .segmented button { padding: 8px 10px; font-size: 0.82rem; }
     .lab-actions {
@@ -61,31 +67,30 @@
       font-size: 0.82rem;
     }
     .lab-status.error-text { color: #f0a99f; }
+    /* Phones keep a phone's size and wrap onto more rows instead of
+       stretching. lab.js sets the device geometry (--screen-w, --screen-h,
+       --status-h, --browser-h, --bezel) and the fit (--device-*). */
     .phones {
       flex: 1;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-content: flex-start;
       gap: 16px;
       padding: 16px;
-      align-content: start;
     }
     .phone {
-      background: #0a0d11;
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      overflow: hidden;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
-      min-width: 0;
+      gap: 8px;
     }
     .phone-bar {
+      width: var(--device-w);
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 8px 10px 8px 14px;
-      background: var(--panel-2);
-      border-bottom: 1px solid var(--border);
+      padding: 0 8px;
       font-size: 0.85rem;
       font-weight: 600;
     }
@@ -104,21 +109,135 @@
       color: var(--muted);
     }
     .phone-bar button:hover { color: var(--text); background: var(--panel); }
-    .phone-screen {
-      position: relative;
-      width: 100%;
-      background: var(--bg);
-      overflow: hidden;
+
+    /* ---- Device: drawn at real size, then scaled as a whole ---- */
+    .device-slot {
+      width: var(--device-w);
+      height: var(--device-h);
     }
-    .phone-screen iframe {
+    .device {
+      position: relative;
+      width: calc(var(--screen-w) + 2 * var(--bezel)); /* real size, before scaling */
+      padding: var(--bezel);
+      border-radius: calc(55px + var(--bezel));
+      background: #070707;
+      /* titanium rim + inner edge + drop shadow */
+      box-shadow:
+        inset 0 0 0 2px #56565a,
+        inset 0 0 0 4px #161618,
+        0 20px 50px rgba(0, 0, 0, 0.6);
+      transform: scale(var(--device-scale, 1));
+      transform-origin: 0 0;
+    }
+    .device .btn {
+      position: absolute;
+      width: 4px;
+      border-radius: 2px;
+      background: #46464a;
+    }
+    .device .btn.action { left: -3px; top: 170px; height: 34px; }
+    .device .btn.vol-up { left: -3px; top: 230px; height: 64px; }
+    .device .btn.vol-down { left: -3px; top: 306px; height: 64px; }
+    .device .btn.power { right: -3px; top: 266px; height: 104px; }
+    .screen {
+      position: relative;
+      width: var(--screen-w);
+      height: var(--screen-h);
+      border-radius: 55px;
+      overflow: hidden;
+      background: var(--bg);
+      color: #fff;
+      font-family: system-ui, -apple-system, "SF Pro Text", sans-serif;
+    }
+    /* Status bar: Safari paints it with the page's theme color (#141414). */
+    .status-bar {
       position: absolute;
       top: 0;
       left: 0;
-      width: 390px;
-      height: 780px;
-      border: 0;
-      transform-origin: 0 0;
+      right: 0;
+      height: var(--status-h);
       background: var(--bg);
+    }
+    .status-bar .island {
+      position: absolute;
+      top: 11px;
+      left: 50%;
+      width: 126px;
+      height: 37px;
+      margin-left: -63px;
+      border-radius: 19px;
+      background: #000;
+    }
+    /* Clock and icons sit centered in the "ears" beside the island. */
+    .status-bar .ear {
+      position: absolute;
+      top: 17px;
+      width: calc((var(--screen-w) - 126px) / 2);
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .status-bar .ear.left { left: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
+    .status-bar .ear.right { right: 0; }
+    .viewport {
+      position: absolute;
+      top: var(--status-h);
+      left: 0;
+      width: var(--screen-w);
+      height: calc(var(--screen-h) - var(--status-h) - var(--browser-h));
+    }
+    .viewport iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: var(--bg);
+    }
+    /* Safari's bottom bar (iOS 15+): address field, toolbar, home indicator. */
+    .safari-bar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: var(--browser-h);
+      background: #1c1c1e;
+      box-shadow: 0 -0.5px 0 rgba(255, 255, 255, 0.14);
+    }
+    .safari-bar .address {
+      height: 44px;
+      margin: 8px 14px 0;
+      padding: 0 14px;
+      border-radius: 12px;
+      background: #2c2c2e;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+    }
+    .safari-bar .aa { font-size: 15px; font-weight: 600; letter-spacing: -0.5px; }
+    .safari-bar .host { flex: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .safari-bar .toolbar {
+      height: 44px;
+      margin-top: 4px;
+      padding: 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      color: #0a84ff;
+    }
+    .safari-bar .toolbar .off { color: #636366; }
+    .safari-bar svg { display: block; }
+    .home-indicator {
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      width: 140px;
+      height: 5px;
+      margin-left: -70px;
+      border-radius: 3px;
+      background: #fff;
     }
   </style>
 </head>
@@ -128,6 +247,8 @@
       <img src="/assets/logo.png" alt="" width="28" height="28" />
       MTG Treachery <span>lab</span>
     </div>
+
+    <div class="lab-device" id="device" title="Device, browser viewport each page lays out at, and on-screen scale"></div>
 
     <div class="segmented" id="count" title="How many phones">
       <button type="button" data-n="4" class="active">4</button>
