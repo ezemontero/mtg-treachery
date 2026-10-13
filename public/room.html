@@ -9,7 +9,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
+<body class="room-page">
   <div class="app">
     <div class="brand">
       <div class="brand-title">
@@ -62,6 +62,8 @@
         <div class="role-card no-anim" id="role-card">
           <div class="face back">
             <img id="card-back-img" data-i18n-alt="room.cardBackAlt" alt="Card back" />
+            <!-- On the back itself: no extra line, and gone once the card is face up -->
+            <div class="card-hint" data-i18n="room.flipHelp">Tap the card to flip it, hold it to enlarge. It hides itself after 10 s.</div>
           </div>
           <div class="face front">
             <img id="card-front-img" data-i18n-alt="room.cardAlt" alt="Your identity card" />
@@ -69,9 +71,7 @@
         </div>
       </div>
 
-      <div class="role-help center" id="role-help" data-i18n="room.flipHelp">Tap the card to flip it. It hides itself after 10 s.</div>
-
-      <!-- Unveil: reversible switch (no modal) -->
+      <!-- Unveil: reversible switch (asks before going public) -->
       <div class="card switch-row" id="unveil-area">
         <div class="switch-text">
           <span class="switch-label" data-i18n="room.unveil">Unveil</span>
@@ -122,6 +122,7 @@
   </div>
 
   <script type="module" src="/version.js"></script>
+  <script type="module" src="/fit.js"></script>
   <script type="module" src="/rules.js"></script>
   <script type="module" src="/gallery.js"></script>
   <script type="module" src="/room.js"></script>

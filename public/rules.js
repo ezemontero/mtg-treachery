@@ -137,6 +137,27 @@ function ensureLangSlot() {
   return slot;
 }
 
+// Where this app's code lives, linked under the footer row on every page.
+const REPO_URL = 'https://github.com/ezemontero/mtg-treachery';
+
+function renderSourceLink() {
+  let line = document.getElementById('source-link');
+  if (!line) {
+    const row = document.querySelector('.home-footer');
+    if (!row) return;
+    line = document.createElement('div');
+    line.id = 'source-link';
+    line.className = 'source-link';
+    row.after(line);
+  }
+  const a = document.createElement('a');
+  a.href = REPO_URL;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.textContent = t('footer.source');
+  line.replaceChildren(a);
+}
+
 function install() {
   const brand = document.querySelector('.brand');
   if (!brand) return;
@@ -191,6 +212,7 @@ function install() {
   rulesBtn.textContent = t('rules.btn');
   rulesBtn.setAttribute('aria-label', t('rules.btn'));
 
+  renderSourceLink();
   renderRulesModal();
   applyTranslations();
 }
@@ -207,6 +229,7 @@ onLocaleChange(() => {
     rulesBtn.textContent = t('rules.btn');
     rulesBtn.setAttribute('aria-label', t('rules.btn'));
   }
+  renderSourceLink();
   renderRulesModal();
 });
 

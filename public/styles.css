@@ -20,6 +20,10 @@
 
   --radius: 16px;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+
+  /* 0px = compact (short phones) … 1px = comfortable. fit.js sets it on .app
+     to fill the screen's spare height without ever making the page scroll. */
+  --grow: 0px;
 }
 
 * { box-sizing: border-box; }
@@ -43,10 +47,12 @@ body {
 .app {
   width: 100%;
   max-width: 460px;
-  padding: 20px 18px 40px;
+  padding:
+    max(calc(12px + 8 * var(--grow)), env(safe-area-inset-top)) 14px
+    max(calc(14px + 10 * var(--grow)), env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: calc(12px + 6 * var(--grow));
   flex: 1;
 }
 
@@ -57,28 +63,27 @@ body {
      action buttons sit on the right. */
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  column-gap: 12px;
+  column-gap: 8px;
   row-gap: 4px;
-  margin-top: 8px;
 }
 .brand-title {
   grid-column: 2;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   text-align: center;
   gap: 8px;
   min-width: 0;
 }
 .brand-logo {
-  width: 56px;
-  height: 56px;
+  width: calc(30px + 10 * var(--grow));
+  height: calc(30px + 10 * var(--grow));
   flex-shrink: 0;
   display: block;
   object-fit: contain;
 }
 .brand h1 {
-  font-size: 1.3rem;
+  font-size: clamp(0.85rem, 4.4vw, 1.15rem);
   margin: 0;
   letter-spacing: 0.3px;
   white-space: nowrap;
@@ -97,7 +102,7 @@ body {
   grid-column: 1;
   grid-row: 1;
   justify-self: start;
-  align-self: start;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -107,13 +112,13 @@ body {
   grid-column: 3;
   grid-row: 1;
   justify-self: end;
-  align-self: start;
+  align-self: center;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 .lang-select {
-  height: 36px;
+  height: calc(28px + 4 * var(--grow));
   width: auto;
   min-width: 4.75rem;
   max-width: 7.5rem;
@@ -142,14 +147,14 @@ body {
 .rules-btn {
   width: auto;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 clamp(10px, 3.2vw, 14px);
   flex-shrink: 0;
   border-radius: 10px;
   background: transparent;
   border: 1px solid var(--border);
   color: var(--muted);
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -230,7 +235,7 @@ button.gallery-thumb img {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: calc(14px + 4 * var(--grow));
   box-shadow: var(--shadow);
 }
 
@@ -243,7 +248,7 @@ label {
 
 input[type="text"] {
   width: 100%;
-  padding: 14px 14px;
+  padding: calc(14px + 4 * var(--grow)) 14px;
   font-size: 1.05rem;
   background: var(--panel-2);
   color: var(--text);
@@ -264,7 +269,7 @@ input.code-input {
 /* ---- Buttons ---- */
 button {
   width: 100%;
-  padding: 15px;
+  padding: calc(15px + 4 * var(--grow));
   font-size: 1.05rem;
   font-weight: 600;
   border: none;
@@ -325,7 +330,7 @@ button[aria-busy="true"]::after {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.stack { display: flex; flex-direction: column; gap: 12px; }
+.stack { display: flex; flex-direction: column; gap: calc(10px + 2 * var(--grow)); }
 
 /* ---- Segmented control (rarity) ---- */
 .segmented {
@@ -339,7 +344,7 @@ button[aria-busy="true"]::after {
 .segmented button {
   flex: 1;
   width: auto;
-  padding: 10px 6px;
+  padding: calc(10px + 3 * var(--grow)) 6px;
   font-size: 0.9rem;
   font-weight: 600;
   background: transparent;
@@ -372,7 +377,7 @@ button[aria-busy="true"]::after {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px;
+  padding: calc(8px + 3 * var(--grow)) 10px;
   background: var(--panel-2);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -446,6 +451,11 @@ button[aria-busy="true"]::after {
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
+/* 7–8 players in the card view: three per row keeps the page short. */
+.players.cols-3 { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.players.cols-3 li { padding: 7px 8px; gap: 6px; }
+.players.cols-3 .pname { font-size: 0.92rem; }
+.players.cols-3 .badge.defeated-badge { font-size: 0.56rem; padding: 3px 6px; }
 
 .role-counts {
   display: flex;
@@ -453,7 +463,7 @@ button[aria-busy="true"]::after {
   align-items: baseline;
   flex-wrap: nowrap;
   gap: 0.35em;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
@@ -497,15 +507,18 @@ button[aria-busy="true"]::after {
 /* ---- Room code + QR ---- */
 .roomcode {
   text-align: center;
-  font-size: 2.6rem;
+  font-size: calc(1.9rem + 6 * var(--grow));
   font-weight: 800;
-  letter-spacing: 10px;
+  line-height: 1.1;
+  letter-spacing: 7px;
   color: var(--accent-hi);
-  padding-left: 10px; /* compensates for the letter-spacing */
+  padding-left: 7px; /* compensates for the letter-spacing */
+  margin-bottom: 8px;
 }
 .qr-wrap { text-align: center; }
 .qr-wrap img {
-  width: 200px; height: 200px;
+  width: calc(200px + 30 * var(--grow));
+  height: calc(200px + 30 * var(--grow));
   border-radius: 12px;
   background: #fff;
   padding: 8px;
@@ -517,18 +530,21 @@ button[aria-busy="true"]::after {
   word-break: break-all;
   margin-top: 8px;
 }
-
 /* ---- Role card (flip) ---- */
+/* The card view gives its spare height to the card (room.js fitCard). */
+#view-role { --grow: 0px; }
 .role-stage {
   perspective: 1200px;
   display: flex;
   justify-content: center;
-  padding: 8px 0;
 }
 .role-card {
   position: relative;
-  width: min(78vw, 300px);
+  width: min(84vw, 340px); /* room.js shrinks it to what fits the screen */
   aspect-ratio: 5 / 7; /* real Magic card proportions */
+  -webkit-touch-callout: none; /* holding it enlarges it instead */
+  -webkit-user-select: none;
+  user-select: none;
   cursor: pointer;
   transform-style: preserve-3d;
   transition: transform 0.5s cubic-bezier(0.4, 0.15, 0.2, 1);
@@ -554,6 +570,21 @@ button[aria-busy="true"]::after {
   display: block;
 }
 .role-card .front { transform: rotateY(180deg); }
+/* The flip hint sits on the card back: no extra line, gone once face up. */
+.card-hint {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 6%;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #f2f2f2;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
 
 /* ---- Example table popup (home only) ---- */
 .ex-modal { max-width: 340px; }
@@ -668,6 +699,10 @@ button[aria-busy="true"]::after {
 .switch input:checked + .slider { background: var(--assassin); border-color: var(--assassin); }
 .switch input:checked + .slider::before { transform: translateX(22px); }
 
+/* Dealer controls (Restart / End Game) side by side. */
+#dealer-controls { flex-direction: row; }
+#dealer-controls > button { flex: 1; }
+
 /* ---- Confirmation modal ---- */
 .modal-backdrop {
   position: fixed; inset: 0;
@@ -776,7 +811,7 @@ button[aria-busy="true"]::after {
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--muted);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .footer-note {
   text-align: center;
@@ -793,10 +828,26 @@ button[aria-busy="true"]::after {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding-top: 12px;
+  gap: 8px;
 }
 .home-footer .version-footer { margin-top: 0; padding: 0; }
+/* "Source on GitHub" under the footer row. */
+.source-link {
+  margin-top: -6px; /* closer to the footer row than the .app gap */
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+.source-link a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.source-link a:hover { color: var(--text); }
+/* Inside a room every pixel goes to the table: no footer there. */
+.room-page .home-footer,
+.room-page .source-link { display: none; }
 .home-footer .lang-slot { margin-top: 0; }
 /* Footer language selector. */
 .lang-slot {

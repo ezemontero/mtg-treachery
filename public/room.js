@@ -184,7 +184,12 @@ function applyRole(data) {
 }
 
 function switchTo(view) {
+  const changed = view.classList.contains('hidden');
   for (const v of [viewLobby, viewRole]) v.classList.toggle('hidden', v !== view);
+  // The dealer taps Start at the bottom of the lobby: start the new view at the
+  // top, or they land mid-page with their card out of sight.
+  if (changed) window.scrollTo(0, 0);
+  if (view === viewRole) fitCard();
 }
 
 // ---- Room lost (server restarted / room expired) ----
@@ -213,7 +218,6 @@ function renderLostView() {
     el(id).classList.add('hidden');
   }
   el('lost-area').classList.remove('hidden');
-  el('role-help').classList.toggle('hidden', isCardLocked());
   if (isCardLocked()) lockFaceUp();
   else resetCardToBack();
   switchTo(viewRole);
@@ -458,6 +462,7 @@ const cardModalName = el('card-modal-name');
 function showPlayerCard(p) {
   if (!p.card) return;
   preload(p.card);
+  viewingMine = false;
   cardModalImg.src = p.card;
   cardModalImg.alt = t('room.playerCardAlt', { name: p.name });
   cardModalName.textContent = p.name;
@@ -465,6 +470,7 @@ function showPlayerCard(p) {
 }
 function closeCardModal() {
   cardModal.classList.add('hidden');
+  viewingMine = false;
 }
 cardModal.addEventListener('click', closeCardModal); // tap anywhere to dismiss
 
@@ -499,7 +505,10 @@ el('deal-btn').addEventListener('click', async () => {
 // ============================ Render: MY ROLE ============================
 function renderRoleView(room) {
   renderRoleCounts(room);
-  renderPlayerList(el('players-role'), room);
+  const list = el('players-role');
+  renderPlayerList(list, room);
+  // Big tables: three per row keeps the list (and the page) shorter.
+  list.classList.toggle('cols-3', room.players.length >= 7);
 
   // Set the card images: front = assigned identity card, back = shared card back.
   const frontImg = el('card-front-img');
@@ -514,7 +523,6 @@ function renderRoleView(room) {
   // Defeated players also stay face-up (identity is public).
   const iAmLeader = myRole === 'LEADER';
   el('unveil-area').classList.toggle('hidden', iAmLeader || defeated);
-  el('role-help').classList.toggle('hidden', iAmLeader || defeated);
   el('defeat-btn').disabled = defeated;
 
   if (iAmLeader || defeated || unveiled) {
@@ -532,6 +540,8 @@ function renderRoleView(room) {
   // Dealer-only controls (restart / end game).
   const dealerControls = el('dealer-controls');
   dealerControls.classList.toggle('hidden', !(room.you && room.dealerId === room.you.id));
+
+  fitCard();
 
   // After the correct face is painted, re-enable the flip animation for future
   // taps. Two rAFs ensure the browser committed the (possibly face-down) state
@@ -551,10 +561,72 @@ function isCardLocked() {
 }
 
 card.addEventListener('click', () => {
+  if (heldOpen) { heldOpen = false; return; } // that press opened the full-size view
   if (isCardLocked()) return;
   if (faceUp) hideCard();
   else showCard();
 });
+
+// ---- Card size: shrink to fit short screens ----
+// The card takes the height the screen has: CSS sizes it generously (up to
+// 340 px wide) and, when the role view would scroll, it shrinks to what fits
+// (never below MIN_CARD_W, to stay readable) so the card, Unveil and the table
+// share one screen. Holding the face-up card shows it full size.
+const MIN_CARD_W = 240;
+const app = document.querySelector('.app');
+// The small viewport (browser bars shown): innerHeight grows while Safari hides
+// its bars on scroll, which would make the card jump.
+const svhProbe = document.createElement('div');
+svhProbe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none';
+document.body.append(svhProbe);
+const smallViewport = () => svhProbe.offsetHeight || innerHeight;
+
+function fitCard() {
+  if (viewRole.classList.contains('hidden')) return;
+  app.style.setProperty('--grow', '0px'); // spare height goes to the card here (fit.js)
+  card.style.width = '';
+  // Where the content ends (not scrollHeight: the body is at least 100dvh tall).
+  const bottom = viewRole.getBoundingClientRect().bottom + scrollY + parseFloat(getComputedStyle(app).paddingBottom);
+  const overflow = bottom - smallViewport();
+  if (overflow <= 0) return;
+  const width = card.offsetWidth;
+  const fitted = Math.max(MIN_CARD_W, width - (overflow * 5) / 7); // the card is 5:7
+  if (fitted < width) card.style.width = `${Math.floor(fitted)}px`;
+}
+
+let fittedFor = `${innerWidth}x${smallViewport()}`;
+window.addEventListener('resize', () => {
+  // Refit on real layout changes (rotation, window size), not Safari's bars.
+  const size = `${innerWidth}x${smallViewport()}`;
+  if (size === fittedFor) return;
+  fittedFor = size;
+  fitCard();
+});
+
+// Hold the face-up card to see it full size.
+const HOLD_MS = 450;
+let holdTimer = null;
+let heldOpen = false;    // a hold just opened the viewer: swallow its click
+let viewingMine = false; // the viewer shows this player's own card
+
+card.addEventListener('pointerdown', () => {
+  heldOpen = false;
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => {
+    if (!faceUp || !myCard) return;
+    heldOpen = true;
+    showPlayerCard({ card: myCard, name: session.name || '' });
+    viewingMine = true;
+    if (!isCardLocked()) { // reading it counts as looking: restart the auto-hide
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideCard, AUTO_HIDE_MS);
+    }
+  }, HOLD_MS);
+});
+for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+  card.addEventListener(type, () => clearTimeout(holdTimer));
+}
+card.addEventListener('contextmenu', (e) => e.preventDefault()); // no "Save image" sheet
 
 function showCard() {
   faceUp = true;
@@ -567,6 +639,7 @@ function hideCard() {
   faceUp = false;
   card.classList.remove('face-up');
   clearTimeout(hideTimer);
+  if (viewingMine) closeCardModal(); // the full-size copy hides with the card
 }
 function lockFaceUp() {
   faceUp = true;
@@ -585,6 +658,7 @@ function snapFaceDown() {
   faceUp = false;
   card.classList.remove('face-up');
   clearTimeout(hideTimer);
+  if (viewingMine) closeCardModal();
 }
 
 // ---- Unveil (reversible switch) ----
