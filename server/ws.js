@@ -15,7 +15,7 @@ const HEARTBEAT_MS = 15_000;
  * It NEVER transmits roles (that is HTTP authenticated by token).
  *
  * @param {import('http').Server} httpServer
- * @returns {{ broadcast: (room:any)=>void, closeRoomSockets: (code:string)=>void }}
+ * @returns {{ broadcast: (room:any)=>void, closeRoomSockets: (code:string)=>void, kickSockets: (code:string, playerId:string)=>void }}
  */
 export function attachWebSocket(httpServer) {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
@@ -56,6 +56,17 @@ export function attachWebSocket(httpServer) {
       try { ws.close(); } catch { /* ignore */ }
     }
     byRoom.delete(code);
+  }
+
+  /** Tells one removed player's sockets they are out, then drops them. */
+  function kickSockets(code, playerId) {
+    const set = byRoom.get(code);
+    if (!set) return;
+    for (const ws of set) {
+      if (ws._playerId !== playerId) continue;
+      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'kicked' }));
+      try { ws.close(); } catch { /* ignore */ }
+    }
   }
 
   wss.on('connection', (ws, req) => {
@@ -121,5 +132,5 @@ export function attachWebSocket(httpServer) {
 
   wss.on('close', () => clearInterval(interval));
 
-  return { broadcast, closeRoomSockets };
+  return { broadcast, closeRoomSockets, kickSockets };
 }

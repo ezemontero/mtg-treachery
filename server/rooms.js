@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { dealRoles, canDeal, ROLE_TABLE } from './deal.js';
+import { dealRoles, canDeal, ROLE_TABLE, MAX_PLAYERS } from './deal.js';
 import { assignCards, normalizeRarity, DEFAULT_RARITY } from './cards.js';
 
 /**
@@ -138,8 +138,29 @@ export function joinRoom(code, name) {
   const room = getRoom(code);
   if (!room) return { ok: false, status: 404, error: 'Room not found.' };
   if (room.phase !== 'lobby') return { ok: false, status: 409, error: 'The game has already started.' };
+  // Past the max the table could never start, so refuse at the door.
+  if (room.players.length >= MAX_PLAYERS) return { ok: false, status: 409, error: 'The room is full (8 players max).' };
   const player = makePlayer(name);
   room.players.push(player);
+  return { ok: true, room, player };
+}
+
+/**
+ * Removes a seat from a lobby: only the dealer may, and never their own.
+ * Lets the dealer clear ghost seats (a double tap, someone who left) before
+ * Start, since every seat in the room is dealt a role.
+ * @returns {{ok:true, room:Room, player:Player}|{ok:false, error:string, status:number}}
+ */
+export function kickPlayer(room, byPlayerId, targetId) {
+  if (!room) return { ok: false, status: 404, error: 'Room not found.' };
+  if (byPlayerId !== room.dealerId) return { ok: false, status: 403, error: 'Only the dealer can remove players.' };
+  if (room.phase !== 'lobby') return { ok: false, status: 409, error: 'The game has already started.' };
+  if (targetId === byPlayerId) return { ok: false, status: 400, error: "You can't remove your own seat." };
+  const idx = room.players.findIndex((p) => p.id === targetId);
+  if (idx === -1) return { ok: false, status: 404, error: 'Player not found.' };
+  const [player] = room.players.splice(idx, 1);
+  // The owner left for good: whoever holds control now owns the room.
+  if (player.id === room.creatorId) room.creatorId = room.dealerId;
   return { ok: true, room, player };
 }
 

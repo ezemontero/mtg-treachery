@@ -155,7 +155,7 @@ async function serveStatic(req, res) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    const handled = await handleApi(req, res, { broadcast, closeRoomSockets, lanBaseUrl, version: pkg.version });
+    const handled = await handleApi(req, res, { broadcast, closeRoomSockets, kickSockets, lanBaseUrl, version: pkg.version });
     if (handled) return;
     await serveStatic(req, res);
   } catch (err) {
@@ -164,7 +164,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const { broadcast, closeRoomSockets } = attachWebSocket(server);
+const { broadcast, closeRoomSockets, kickSockets } = attachWebSocket(server);
 
 // Periodic sweep of abandoned rooms.
 const sweep = setInterval(() => sweepRooms(), 5 * 60 * 1000);

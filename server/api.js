@@ -7,6 +7,7 @@ import {
   dealRoom,
   setUnveiled,
   setDefeated,
+  kickPlayer,
   closeRoom,
   deleteRoom,
   findPlayerByToken,
@@ -20,9 +21,10 @@ import {
  * Injected by index.js:
  *  - broadcast(room): pushes the public state over WS to the room.
  *  - closeRoomSockets(code): tells every socket in the room the room closed.
+ *  - kickSockets(code, playerId): tells a removed player's sockets they are out.
  *  - lanBaseUrl(): the base URL to share (used to build the QR).
  */
-export async function handleApi(req, res, { broadcast, closeRoomSockets, lanBaseUrl, version }) {
+export async function handleApi(req, res, { broadcast, closeRoomSockets, kickSockets, lanBaseUrl, version }) {
   const url = new URL(req.url, 'http://localhost');
   const path = url.pathname;
   if (!path.startsWith('/api/')) return false;
@@ -98,6 +100,20 @@ export async function handleApi(req, res, { broadcast, closeRoomSockets, lanBase
       if (!result.ok) return send(res, result.status, { error: result.error });
       broadcast(result.room);
       return send(res, 200, { defeated: true, unveiled: player.unveiled });
+    }
+
+    // POST /api/rooms/:code/kick  — remove a lobby seat (authenticated, dealer only)
+    m = path.match(/^\/api\/rooms\/([^/]+)\/kick$/);
+    if (m && req.method === 'POST') {
+      const room = getRoom(m[1]);
+      const player = authPlayer(req, room);
+      if (!player) return send(res, 401, { error: 'Not authenticated in this room.' });
+      const body = await readJson(req);
+      const result = kickPlayer(room, player.id, body.playerId);
+      if (!result.ok) return send(res, result.status, { error: result.error });
+      kickSockets(room.code, result.player.id); // the removed seat returns to the start
+      broadcast(room);
+      return send(res, 200, { ok: true });
     }
 
     // POST /api/rooms/:code/close  — close the room (authenticated, dealer only)
