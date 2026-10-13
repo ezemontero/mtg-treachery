@@ -2,28 +2,36 @@
 import { saveSession, setName, clearSlot } from '/app.js';
 
 const NAMES = ['Ann', 'Bob', 'Cam', 'Dee', 'Eve', 'Fay', 'Gus', 'Hal'];
-// Every frame is a 6.7" iPhone (15 Pro Max / 16 Plus, 430×932 pt) running
-// Safari. The status bar and Safari's bottom bar take 193 pt, so each page gets
-// the 430×739 viewport Safari really leaves it (bars expanded, as on page
-// load; same numbers as Playwright's device profiles). The device is drawn at
-// real size and scaled down only to fit the window (fitPhones). Pixel density
-// can't be emulated inside an iframe.
-const DEVICE = {
-  label: 'iPhone 6.7″ · Safari',
-  screenW: 430,
-  screenH: 932,
-  statusH: 59,   // status bar around the Dynamic Island
-  browserH: 134, // address field + toolbar + home indicator
-  bezel: 12,
+// Phones the lab can emulate. Each page gets the viewport its browser really
+// leaves it, with the bars expanded as on page load (screen minus status bar
+// and browser bars; same numbers as Playwright's device profiles). Devices are
+// drawn at real size and only scaled down to fit the window (fitPhones). Pixel
+// density can't be emulated inside an iframe.
+const IPHONE = { browser: 'Safari', kind: 'iphone', statusH: 59, topH: 0, bottomH: 134, bezel: 12, radius: 55 };
+const PIXEL = { browser: 'Chrome', kind: 'android', statusH: 24, topH: 52, bottomH: 0, bezel: 9, radius: 38 };
+const DEVICES = {
+  'iphone-61': { ...IPHONE, label: 'iPhone 6.1″', model: 'iPhone 15 / 16', screenW: 393, screenH: 852 },
+  'iphone-63': { ...IPHONE, label: 'iPhone 6.3″', model: 'iPhone 16 Pro / 17', screenW: 402, screenH: 874 },
+  'iphone-67': { ...IPHONE, label: 'iPhone 6.7″', model: 'iPhone 15 Pro Max / 16 Plus', screenW: 430, screenH: 932 },
+  'iphone-69': { ...IPHONE, label: 'iPhone 6.9″', model: 'iPhone 16 / 17 Pro Max', screenW: 440, screenH: 956 },
+  'android-360': { ...PIXEL, label: 'Android 6.3″', model: 'Pixel 9', screenW: 360, screenH: 808 },
+  'android-412': { ...PIXEL, label: 'Android 6.2″', model: 'Pixel 8', screenW: 412, screenH: 915 },
+  'android-448': { ...PIXEL, label: 'Android 6.8″', model: 'Pixel 9 Pro XL', screenW: 448, screenH: 997 },
 };
-const VIEWPORT_W = DEVICE.screenW;
-const VIEWPORT_H = DEVICE.screenH - DEVICE.statusH - DEVICE.browserH; // 739
-const DEVICE_W = DEVICE.screenW + 2 * DEVICE.bezel;
-const DEVICE_H = DEVICE.screenH + 2 * DEVICE.bezel;
+// Four typical phones by default (two iPhone sizes and the two common Android
+// widths); phones 5–8 repeat them. Each phone remembers its own pick.
+const DEFAULT_DEVICES = ['iphone-67', 'iphone-61', 'android-412', 'android-360'];
+const deviceKey = (slot) => `treachery:lab:device:${slot}`;
+function deviceIdFor(slot, index) {
+  const saved = localStorage.getItem(deviceKey(slot));
+  return DEVICES[saved] ? saved : DEFAULT_DEVICES[index % DEFAULT_DEVICES.length];
+}
+const viewportOf = (d) => ({ w: d.screenW, h: d.screenH - d.statusH - d.topH - d.bottomH });
+const outerOf = (d) => ({ w: d.screenW + 2 * d.bezel, h: d.screenH + 2 * d.bezel });
 
 const phonesEl = document.getElementById('phones');
 const statusEl = document.getElementById('status');
-const deviceEl = document.getElementById('device');
+const scaleEl = document.getElementById('scale');
 const fillBtn = document.getElementById('fill-btn');
 const blankBtn = document.getElementById('blank-btn');
 const resetBtn = document.getElementById('reset-btn');
@@ -67,38 +75,48 @@ function clearAllSlots() {
   for (let i = 0; i < 8; i++) clearSlot(slotOf(i));
 }
 
-// The frame's geometry lives here; lab.html's CSS reads it from these vars.
-phonesEl.style.setProperty('--screen-w', `${DEVICE.screenW}px`);
-phonesEl.style.setProperty('--screen-h', `${DEVICE.screenH}px`);
-phonesEl.style.setProperty('--status-h', `${DEVICE.statusH}px`);
-phonesEl.style.setProperty('--browser-h', `${DEVICE.browserH}px`);
-phonesEl.style.setProperty('--bezel', `${DEVICE.bezel}px`);
-
 /**
  * Sizes every device like the real phone: never bigger than 1:1, shrunk just
- * enough for a whole phone (label included) to fit the window. If shrinking a
- * little more fits the whole table on one row (4 phones on a laptop), do that.
- * One scale for all, so they match.
+ * enough for the tallest phone (label included) to fit the window. If shrinking
+ * a little more fits the whole table on one row (4 phones on a laptop), do that.
+ * One scale for all, so their real sizes compare.
  */
 function fitPhones() {
+  const phones = [...phonesEl.children];
   const pad = getComputedStyle(phonesEl);
   const padY = parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom);
   const padX = parseFloat(pad.paddingLeft) + parseFloat(pad.paddingRight);
   const gap = parseFloat(pad.columnGap) || 0;
   const top = document.querySelector('.lab-bar').offsetHeight;
   const label = (phonesEl.querySelector('.phone-bar')?.offsetHeight ?? 26) + 8; // + gap
+  const sizes = phones.map((p) => outerOf(DEVICES[p.dataset.device]));
+  const tallest = Math.max(1, ...sizes.map((z) => z.h));
+  const widest = Math.max(1, ...sizes.map((z) => z.w));
   const width = innerWidth - padX - 8; // the side buttons overhang the edges
-  let scale = Math.min(1, (innerHeight - top - padY - label) / DEVICE_H, width / DEVICE_W);
-  const count = phonesEl.children.length;
-  const oneRow = (width - gap * (count - 1)) / (DEVICE_W * count);
-  if (count > 1 && oneRow < scale && oneRow >= 0.85 * scale) scale = oneRow;
+  let scale = Math.min(1, (innerHeight - top - padY - label) / tallest, width / widest);
+  const oneRow = (width - gap * (phones.length - 1)) / sizes.reduce((sum, z) => sum + z.w, 0);
+  if (phones.length > 1 && oneRow < scale && oneRow >= 0.85 * scale) scale = oneRow;
   phonesEl.style.setProperty('--device-scale', String(scale));
-  phonesEl.style.setProperty('--device-w', `${Math.floor(DEVICE_W * scale)}px`);
-  phonesEl.style.setProperty('--device-h', `${Math.floor(DEVICE_H * scale)}px`);
-  deviceEl.textContent = `${DEVICE.label} ${VIEWPORT_W}×${VIEWPORT_H} · ${Math.round(scale * 100)}%`;
+  phones.forEach((p, i) => {
+    p.style.setProperty('--device-w', `${Math.floor(sizes[i].w * scale)}px`);
+    p.style.setProperty('--device-h', `${Math.floor(sizes[i].h * scale)}px`);
+  });
+  scaleEl.textContent = `Phones at ${Math.round(scale * 100)}% of real size`;
 }
 
-// Inline icons (Safari dark mode), drawn at their real point size.
+/** Puts a phone on a device: its geometry vars and its bars (the iframe stays put). */
+function setDevice(phone, id) {
+  const d = DEVICES[id];
+  phone.dataset.device = id;
+  const vars = { 'screen-w': d.screenW, 'screen-h': d.screenH, 'status-h': d.statusH, 'top-h': d.topH, 'bottom-h': d.bottomH, bezel: d.bezel, radius: d.radius };
+  for (const [name, px] of Object.entries(vars)) phone.style.setProperty(`--${name}`, `${px}px`);
+  renderChrome(phone.querySelector('.device'), d);
+  const pick = phone.querySelector('.device-pick');
+  pick.value = id;
+  pick.title = `${d.model} · ${d.browser}`;
+}
+
+// Inline icons (dark mode), drawn at their real point size.
 const svg = (w, h, body, extra = '') =>
   `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${body}</svg>`;
 const ICONS = {
@@ -111,30 +129,53 @@ const ICONS = {
   share: svg(24, 24, '<path d="M8.5 9.5H6.8A1.8 1.8 0 0 0 5 11.3v8A1.8 1.8 0 0 0 6.8 21h10.4a1.8 1.8 0 0 0 1.8-1.7v-8a1.8 1.8 0 0 0-1.8-1.8h-1.7M12 14V3M8.5 6.5 12 3l3.5 3.5"/>'),
   bookmarks: svg(24, 24, '<path d="M12 6.5C10 5 7 4.5 3.5 5.3v13.4C7 18 10 18.5 12 20c2-1.5 5-2 8.5-1.3V5.3C17 4.5 14 5 12 6.5ZM12 6.5V20"/>'),
   tabs: svg(24, 24, '<rect x="3.5" y="7.5" width="13" height="13" rx="2.2"/><path d="M7.5 7.5V5.7a2.2 2.2 0 0 1 2.2-2.2h9.1a2.2 2.2 0 0 1 2.2 2.2v9.1a2.2 2.2 0 0 1-2.2 2.2h-2.3"/>'),
+  // Android: vertical battery, Chrome's page-info and menu icons.
+  batteryV: `<svg width="9" height="15" viewBox="0 0 9 15" fill="currentColor"><rect x="2.5" y="0" width="4" height="2" rx="0.6"/><rect x="0" y="1.5" width="9" height="13.5" rx="1.8"/></svg>`,
+  tune: svg(18, 18, '<path d="M3 5.5h7M14 5.5h1M3 12.5h1M8 12.5h7"/><circle cx="12" cy="5.5" r="2"/><circle cx="6" cy="12.5" r="2"/>', 'stroke-width="1.8"'),
+  more: `<svg width="4" height="18" viewBox="0 0 4 18" fill="currentColor"><circle cx="2" cy="3" r="2"/><circle cx="2" cy="9" r="2"/><circle cx="2" cy="15" r="2"/></svg>`,
 };
 
-/** The phone around a player's iframe: bezel, status bar, Safari's bottom bar. */
+// Browser and system bars around the page, per device kind.
+const CHROME = {
+  iphone: () => ({
+    status: `<span class="ear left">9:41</span><span class="island"></span>
+      <span class="ear right">${ICONS.signal}${ICONS.wifi}${ICONS.battery}</span>`,
+    top: '',
+    bottom: `<div class="address"><span class="aa">aA</span><span class="host">${location.hostname}</span>${ICONS.reload}</div>
+      <div class="toolbar">${ICONS.back}<span class="off">${ICONS.forward}</span>${ICONS.share}${ICONS.bookmarks}${ICONS.tabs}</div>
+      <span class="home-indicator"></span>`,
+  }),
+  android: () => ({
+    status: `<span class="clock">9:41</span><span class="camera"></span>
+      <span class="icons">${ICONS.wifi}${ICONS.signal}${ICONS.batteryV}</span>`,
+    top: `<div class="omnibox">${ICONS.tune}<span class="host">${location.hostname}</span></div>
+      <span class="tab-count">1</span>${ICONS.more}`,
+    bottom: '<span class="gesture-bar"></span>',
+  }),
+};
+
+/** Paints a device's system and browser bars for its kind. */
+function renderChrome(dev, d) {
+  const parts = CHROME[d.kind]();
+  dev.dataset.kind = d.kind;
+  dev.querySelector('.status-bar').innerHTML = parts.status;
+  dev.querySelector('.top-bar').innerHTML = parts.top;
+  dev.querySelector('.bottom-bar').innerHTML = parts.bottom;
+}
+
+/** The phone around a player's iframe: bezel, side buttons, system + browser bars. */
 function deviceFrame(iframe) {
   const slot = document.createElement('div');
   slot.className = 'device-slot';
   slot.innerHTML = `
     <div class="device">
-      <span class="btn action"></span><span class="btn vol-up"></span>
-      <span class="btn vol-down"></span><span class="btn power"></span>
+      <span class="btn b1"></span><span class="btn b2"></span>
+      <span class="btn b3"></span><span class="btn b4"></span>
       <div class="screen">
-        <div class="status-bar">
-          <span class="ear left">9:41</span>
-          <span class="island"></span>
-          <span class="ear right">${ICONS.signal}${ICONS.wifi}${ICONS.battery}</span>
-        </div>
+        <div class="status-bar"></div>
+        <div class="top-bar"></div>
         <div class="viewport"></div>
-        <div class="safari-bar">
-          <div class="address"><span class="aa">aA</span><span class="host">${location.hostname}</span>${ICONS.reload}</div>
-          <div class="toolbar">
-            ${ICONS.back}<span class="off">${ICONS.forward}</span>${ICONS.share}${ICONS.bookmarks}${ICONS.tabs}
-          </div>
-          <span class="home-indicator"></span>
-        </div>
+        <div class="bottom-bar"></div>
       </div>
     </div>`;
   slot.querySelector('.viewport').append(iframe);
@@ -157,11 +198,25 @@ function renderPhones(count, srcForSlot) {
     const nameEl = document.createElement('span');
     nameEl.className = 'name';
     nameEl.textContent = name;
+    const pick = document.createElement('select');
+    pick.className = 'device-pick';
+    pick.setAttribute('aria-label', `Phone for ${name}`);
+    for (const [id, d] of Object.entries(DEVICES)) {
+      const vp = viewportOf(d);
+      pick.append(new Option(`${d.label} · ${vp.w}×${vp.h}`, id));
+    }
+    pick.addEventListener('change', () => {
+      localStorage.setItem(deviceKey(slot), pick.value);
+      setDevice(phone, pick.value);
+      fitPhones();
+    });
     const pop = document.createElement('button');
     pop.type = 'button';
-    pop.textContent = 'Pop out';
-    pop.title = 'Open this player in a new window';
-    bar.append(slotEl, nameEl, pop);
+    pop.className = 'pop-out';
+    pop.textContent = '↗';
+    pop.title = 'Pop out: open this player in a new window';
+    pop.setAttribute('aria-label', `Pop out ${name}`);
+    bar.append(slotEl, nameEl, pick, pop);
 
     const iframe = document.createElement('iframe');
     iframe.title = `${name} (player ${slot})`;
@@ -169,11 +224,13 @@ function renderPhones(count, srcForSlot) {
 
     pop.addEventListener('click', () => {
       const url = iframe.contentWindow?.location?.href || iframe.src;
-      // Same size as the in-frame viewport: what Safari leaves the page.
-      window.open(url, `treachery-slot-${slot}`, `width=${VIEWPORT_W},height=${VIEWPORT_H}`);
+      // Same size as the in-frame viewport: what the browser leaves the page.
+      const vp = viewportOf(DEVICES[phone.dataset.device]);
+      window.open(url, `treachery-slot-${slot}`, `width=${vp.w},height=${vp.h}`);
     });
 
     phone.append(bar, deviceFrame(iframe));
+    setDevice(phone, deviceIdFor(slot, i));
     phonesEl.append(phone);
   }
   fitPhones();
