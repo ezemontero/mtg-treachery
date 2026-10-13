@@ -108,7 +108,12 @@ function renderRulesModal() {
   });
 }
 
-/** Footer row that holds the language selector. Pages may supply #lang-slot. */
+/**
+ * Footer row that holds the language selector on the SAME line as the app
+ * version. Pages may supply #lang-slot (the home does); otherwise we build the
+ * `.home-footer` row and move the bare #app-version into it so every page lays
+ * the two out identically.
+ */
 function ensureLangSlot() {
   let slot = document.getElementById('lang-slot');
   if (slot) return slot;
@@ -117,9 +122,18 @@ function ensureLangSlot() {
   slot = document.createElement('div');
   slot.id = 'lang-slot';
   slot.className = 'lang-slot';
+
   const version = document.getElementById('app-version');
-  if (version && version.parentElement === app) app.insertBefore(slot, version);
-  else app.appendChild(slot);
+  // If the version is a bare footer element, wrap both in a shared row so the
+  // language selector and version sit side by side (as on the home page).
+  if (version && version.parentElement === app) {
+    const footer = document.createElement('div');
+    footer.className = 'home-footer';
+    app.insertBefore(footer, version);
+    footer.append(slot, version);
+  } else {
+    app.appendChild(slot);
+  }
   return slot;
 }
 

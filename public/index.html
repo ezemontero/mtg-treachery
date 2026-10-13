@@ -25,11 +25,13 @@
       <div id="resume-list" class="stack"></div>
     </div>
 
+    <!-- The name is shared by both actions below, so it sits on its own. -->
+    <div class="card">
+      <label for="name" data-i18n="name.label">Your name</label>
+      <input id="name" type="text" data-i18n-placeholder="name.placeholder" placeholder="e.g. Ann" autocomplete="off" maxlength="12" enterkeyhint="done" />
+    </div>
+
     <div class="card stack">
-      <div>
-        <label for="name" data-i18n="name.label">Your name</label>
-        <input id="name" type="text" data-i18n-placeholder="name.placeholder" placeholder="e.g. Ann" autocomplete="off" maxlength="12" />
-      </div>
       <div>
         <label data-i18n="rarity.label">Card rarity</label>
         <div class="segmented" id="rarity">
@@ -46,7 +48,7 @@
     <div class="card stack">
       <div>
         <label for="code" data-i18n="code.label">Room code</label>
-        <input id="code" type="text" class="code-input" placeholder="ABCD" autocomplete="off" maxlength="4" inputmode="text" />
+        <input id="code" type="text" class="code-input" placeholder="ABCD" autocomplete="off" maxlength="4" inputmode="text" enterkeyhint="go" />
       </div>
       <button id="join-btn" class="secondary" data-i18n="join">Join</button>
     </div>
@@ -62,7 +64,7 @@
   <script type="module" src="/gallery.js"></script>
   <script type="module" src="/example.js"></script>
   <script type="module">
-    import { createRoom, joinExisting, showError, getName, setName, findResumableRooms, withSlot } from '/app.js';
+    import { createRoom, joinExisting, lockWhile, showError, getName, setName, findResumableRooms, withSlot } from '/app.js';
     import { t, onLocaleChange } from '/i18n.js';
 
     const nameEl = document.getElementById('name');
@@ -102,25 +104,35 @@
       for (const b of rarityBox.children) b.classList.toggle('active', b === btn);
     });
 
-    document.getElementById('create-btn').addEventListener('click', async () => {
+    const createBtn = document.getElementById('create-btn');
+    const joinBtn = document.getElementById('join-btn');
+    const submitButtons = [createBtn, joinBtn];
+
+    createBtn.addEventListener('click', () => {
       const name = nameEl.value.trim();
       if (!name) return showError(t('error.needName'));
       setName(name);
-      await createRoom(name, rarity);
+      lockWhile(submitButtons, createBtn, () => createRoom(name, rarity));
     });
 
-    document.getElementById('join-btn').addEventListener('click', async () => {
+    joinBtn.addEventListener('click', () => {
       const name = nameEl.value.trim();
       const code = codeEl.value.trim().toUpperCase();
       if (!name) return showError(t('error.needName'));
       if (code.length !== 4) return showError(t('error.codeLength'));
       setName(name);
-      await joinExisting(code, name);
+      lockWhile(submitButtons, joinBtn, () => joinExisting(code, name));
     });
 
-    // Enter to submit
-    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('create-btn').click(); });
-    codeEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('join-btn').click(); });
+    // Enter in the name can't know whether you meant to create or join, so it
+    // only submits when a full code is already typed; otherwise it just closes
+    // the keyboard. Enter in the code always joins.
+    nameEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      if (codeEl.value.trim().length === 4) joinBtn.click();
+      else nameEl.blur();
+    });
+    codeEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinBtn.click(); });
   </script>
 </body>
 </html>

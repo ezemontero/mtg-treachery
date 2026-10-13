@@ -44,7 +44,7 @@
   <script type="module" src="/rules.js"></script>
   <script type="module" src="/gallery.js"></script>
   <script type="module">
-    import { joinExisting, showError, getName, setName, hasSession, clearSession, withSlot } from '/app.js';
+    import { joinExisting, lockWhile, showError, getName, setName, hasSession, getRecentRole, clearSession, withSlot } from '/app.js';
     import { t } from '/i18n.js';
 
     const params = new URLSearchParams(location.search);
@@ -54,24 +54,26 @@
     codeEl.value = preCode;
     nameEl.value = getName();
 
-    // If we already have a saved session for this room, go straight in.
+    // If we already have a saved session for this room, go straight in. A room
+    // the server lost still opens if this phone holds a card from a recent deal.
     if (preCode && hasSession(preCode)) {
       fetch(`/api/rooms/${preCode}`).then((r) => {
-        if (r.ok) location.replace(withSlot(`/room/${preCode}`));
+        if (r.ok || getRecentRole(preCode)) location.replace(withSlot(`/room/${preCode}`));
         else { clearSession(preCode); location.replace(withSlot('/home')); }
       }).catch(() => location.replace(withSlot('/home')));
     }
 
-    document.getElementById('join-btn').addEventListener('click', async () => {
+    const joinBtn = document.getElementById('join-btn');
+    joinBtn.addEventListener('click', () => {
       const code = codeEl.value.trim().toUpperCase();
       const name = nameEl.value.trim();
       if (code.length !== 4) return showError(t('error.codeLength'));
       if (!name) return showError(t('error.needNameJoin'));
       setName(name);
-      await joinExisting(code, name);
+      lockWhile([joinBtn], joinBtn, () => joinExisting(code, name));
     });
 
-    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('join-btn').click(); });
+    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinBtn.click(); });
   </script>
 </body>
 </html>

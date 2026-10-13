@@ -9,6 +9,7 @@
   --accent: #e50914;      /* Netflix red — primary call to action */
   --accent-hi: #f6121d;   /* brighter red on hover */
   --danger: #b20710;      /* deeper red keeps destructive actions distinct */
+  --danger-fg: #e5484d;   /* destructive text/outline on the dark canvas (AA) */
   --ok: #46d369;          /* online/success green (Netflix "match" green) */
 
   /* Role identities stay distinct — they map to the physical Magic cards. */
@@ -276,10 +277,11 @@ button {
 }
 button:active { transform: scale(0.98); }
 button:hover { background: var(--accent-hi); }
-button:disabled {
-  background: var(--panel-2);
-  color: var(--muted);
-  cursor: not-allowed;
+/* A locked action (e.g. Start before the table is big enough) shows a padlock. */
+button.locked::before {
+  content: "🔒";
+  margin-right: 8px;
+  font-size: 0.95em;
 }
 button.secondary {
   background: transparent;
@@ -289,6 +291,39 @@ button.secondary {
 button.secondary:hover { background: var(--panel-2); }
 button.danger { background: var(--danger); }
 button.danger:hover { background: #d10a12; }
+/* A destructive action that isn't the screen's goal (Surrender, End Game):
+   outlined red text, so it never reads like the solid red "go" buttons. */
+button.secondary.danger {
+  background: transparent;
+  border-color: var(--danger-fg);
+  color: var(--danger-fg);
+}
+button.secondary.danger:hover { background: rgba(229, 72, 77, 0.12); }
+/* Disabled beats every variant: it repeats their selectors and comes last. */
+button:disabled,
+button:disabled:hover,
+button.secondary:disabled,
+button.danger:disabled,
+button.secondary.danger:disabled {
+  background: var(--panel-2);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+/* Waiting on the server (create / join): a small spinner after the label. */
+button[aria-busy="true"]::after {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-left: 10px;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .stack { display: flex; flex-direction: column; gap: 12px; }
 
@@ -389,6 +424,20 @@ button.danger:hover { background: #d10a12; }
 .players li.defeated .pname {
   display: none;
 }
+/* Dealer's "remove this seat" control in the lobby list. */
+.players li .kick-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: -6px -4px -6px auto;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.players li .kick-btn:hover { background: var(--border); color: var(--text); }
 .badge.defeated-badge {
   background: var(--danger);
   color: #fff;
@@ -435,6 +484,14 @@ button.danger:hover { background: #d10a12; }
 .card-viewer-hint {
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+/* The lobby's Start: the room's one big action, so larger and uppercase. */
+#deal-btn {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
 }
 
 /* ---- Room code + QR ---- */
@@ -541,6 +598,14 @@ button.danger:hover { background: #d10a12; }
   text-align: center;
   color: var(--muted);
   font-size: 0.82rem;
+}
+/* Room-lost notice (the server forgot the room; the card is still cached). */
+.notice-title { font-weight: 700; margin-bottom: 6px; }
+.notice-text {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin: 0 0 12px;
 }
 .unveiled-tag {
   display: inline-block;
@@ -721,21 +786,22 @@ button.danger:hover { background: #d10a12; }
   padding-top: 12px;
 }
 .footer-note a { color: var(--accent-hi); }
-/* Home footer: hosts the language selector above the app version. */
+/* Home footer: the language selector and app version share one line. */
 .home-footer {
   margin-top: auto;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   padding-top: 12px;
 }
-.home-footer .version-footer { margin-top: 0; }
-/* Footer language selector, centered above the app version. */
+.home-footer .version-footer { margin-top: 0; padding: 0; }
+.home-footer .lang-slot { margin-top: 0; }
+/* Footer language selector. */
 .lang-slot {
   display: flex;
   justify-content: center;
-  width: 100%;
 }
 .app > .lang-slot { margin-top: auto; }
 .app > .lang-slot + .version-footer { margin-top: 0; }

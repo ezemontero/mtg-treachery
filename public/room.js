@@ -1,5 +1,5 @@
 // Room screen logic: presence WebSocket, lobby, role card and unveil.
-import { getSession, clearSession, showError, saveRole, getRole, getUnveil, setUnveil, withSlot, currentSlot } from '/app.js';
+import { getSession, clearSession, showError, saveRole, getRole, getRecentRole, getUnveil, setUnveil, withSlot, currentSlot } from '/app.js';
 import { t, onLocaleChange } from '/i18n.js';
 
 const CODE = (location.pathname.match(/\/room\/([^/]+)/)?.[1] || '').toUpperCase();
@@ -17,6 +17,7 @@ history.pushState({ room: CODE }, '');
 window.addEventListener('popstate', () => { location.replace(withSlot('/home')); });
 
 const AUTO_HIDE_MS = 10_000;
+const MIN_PLAYERS = 4; // Treachery is for 4–8 (server/deal.js)
 
 // ---- Client state ----
 let ws = null;
@@ -28,6 +29,7 @@ let unveiled = false;  // reveal state (reversible)
 let defeated = false;  // eliminated this deal; identity stays public
 let faceUp = false;    // currently visible face (toggle)
 let hideTimer = null;
+let roomLost = false;  // the server forgot the room; we only show the cached card
 const preloaded = {};  // url -> Image, kept in memory so the browser never re-fetches
 
 // ---- Elements ----
@@ -50,14 +52,12 @@ function connect() {
     let msg;
     try { msg = JSON.parse(ev.data); } catch { return; }
     if (msg.type === 'unauthorized') {
-      // The server doesn't recognize the token (restarted or room expired):
-      // the old game no longer exists, so start fresh at /home.
-      clearSession(CODE);
-      location.replace(withSlot('/home'));
+      // The server doesn't recognize the token (restarted or room expired).
+      onRoomGone();
       return;
     }
-    if (msg.type === 'closed') {
-      // The dealer closed the room: everyone returns to the start.
+    if (msg.type === 'closed' || msg.type === 'kicked') {
+      // The dealer closed the room (or removed this seat): back to the start.
       clearSession(CODE);
       location.replace(withSlot('/home'));
       return;
@@ -68,6 +68,7 @@ function connect() {
   });
 
   ws.addEventListener('close', () => {
+    if (roomLost) return; // nothing left on the server to reconnect to
     connSub.textContent = t('room.reconnecting');
     // Simple retry while the tab is visible.
     scheduleReconnect();
@@ -104,6 +105,7 @@ window.addEventListener('pagehide', () => clearInterval(heartbeat));
 // Reopen the socket when coming back to the foreground (phones suspend it in the background).
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    if (roomLost) return;
     if (!ws || ws.readyState === WebSocket.CLOSED) connect();
     else sendPing(); // still connected: nudge the host awake immediately
   } else {
@@ -139,6 +141,12 @@ async function onState(room) {
     if (fresh) {
       applyRole(cached);
     } else {
+      // A (re-)deal: hide the current face instantly, BEFORE the new card
+      // arrives. A face-up card (Leader, unveiled, defeated) must never show
+      // the new identity while it flips down.
+      snapFaceDown();
+      // An open Unveil/Surrender prompt was about the previous identity.
+      closeConfirm(false);
       await fetchMyRole(room.dealtAt); // deal / re-deal: server is awake right now
     }
 
@@ -178,6 +186,44 @@ function applyRole(data) {
 function switchTo(view) {
   for (const v of [viewLobby, viewRole]) v.classList.toggle('hidden', v !== view);
 }
+
+// ---- Room lost (server restarted / room expired) ----
+// A hosted server (e.g. Render's free tier) loses every room when it sleeps or
+// redeploys, but the game at the table goes on. If this phone still holds a
+// card from a recent deal, keep showing it instead of wiping it.
+function onRoomGone() {
+  const cached = getRecentRole(CODE);
+  if (!cached) {
+    clearSession(CODE);
+    location.replace(withSlot('/home'));
+    return;
+  }
+  roomLost = true;
+  clearTimeout(reconnectTimer);
+  connSub.textContent = '';
+  applyRole(cached);
+  renderLostView();
+}
+
+function renderLostView() {
+  el('card-front-img').src = myCard;
+  el('card-back-img').src = cardBackUrl;
+  // Without the server there is no table to show or act on: just the card.
+  for (const id of ['unveil-area', 'players-card', 'defeat-btn', 'dealer-controls']) {
+    el(id).classList.add('hidden');
+  }
+  el('lost-area').classList.remove('hidden');
+  el('role-help').classList.toggle('hidden', isCardLocked());
+  if (isCardLocked()) lockFaceUp();
+  else resetCardToBack();
+  switchTo(viewRole);
+  requestAnimationFrame(() => requestAnimationFrame(() => card.classList.remove('no-anim')));
+}
+
+el('leave-btn').addEventListener('click', () => {
+  clearSession(CODE);
+  location.replace(withSlot('/home'));
+});
 
 async function fetchMyRole(dealtAt) {
   try {
@@ -243,15 +289,31 @@ function renderLobby(room) {
     waitArea.classList.add('hidden');
     const ready = room.canDeal;
     dealBtn.disabled = !ready;
-    dealHelp.textContent = ready
-      ? t('room.ready', { n: room.playerCount })
-      : t('room.needPlayers', { n: room.playerCount });
+    // Show a lock on the Start button while the table is too small to deal.
+    dealBtn.classList.toggle('locked', !ready);
+    dealHelp.textContent = dealHint(room);
   } else {
     dealArea.classList.add('hidden');
     waitArea.classList.remove('hidden');
     const dealer = room.players.find((p) => p.id === room.dealerId);
     el('dealer-name').textContent = dealer ? dealer.name : t('room.dealerFallback');
   }
+}
+
+// Under Start: how many players are missing, or who is offline (offline seats
+// are dealt a role too).
+function dealHint(room) {
+  if (!room.canDeal) {
+    const missing = MIN_PLAYERS - room.playerCount;
+    if (missing <= 0) return '';
+    return missing === 1 ? t('room.needOne') : t('room.needMany', { n: missing });
+  }
+  const offline = offlineNames(room);
+  return offline ? t('room.offline', { names: offline }) : t('room.ready', { n: room.playerCount });
+}
+
+function offlineNames(room) {
+  return room.players.filter((p) => !p.connected).map((p) => p.name).join(', ');
 }
 
 // Token art shown next to a player once their identity is public (unveiled).
@@ -284,6 +346,8 @@ function roleIcon(role) {
 
 function renderPlayerList(ul, room) {
   ul.innerHTML = '';
+  // In the lobby the dealer can clear a seat (a double tap, someone who left).
+  const canKick = room.phase === 'lobby' && !!room.you && room.dealerId === room.you.id;
   for (const p of room.players) {
     const li = document.createElement('li');
     if (p.defeated) {
@@ -310,10 +374,43 @@ function renderPlayerList(ul, room) {
         showPlayerCard(p);
       });
     }
-    if (p.defeated) li.append(badge(t('room.surrendered'), 'defeated-badge'));
+    if (p.defeated) li.append(badge(t('room.defeated'), 'defeated-badge'));
+    if (canKick && p.id !== room.you.id) li.append(kickButton(p));
 
     ul.append(li);
   }
+}
+
+function kickButton(p) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'kick-btn';
+  btn.textContent = '✕';
+  btn.setAttribute('aria-label', t('room.kickLabel', { name: p.name }));
+  btn.addEventListener('click', async () => {
+    const ok = await confirmAction(t('confirm.kickTitle', { name: p.name }), t('confirm.kickText'), {
+      okLabel: t('room.kick'),
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/rooms/${CODE}/kick`, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + session.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: p.id }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        showError(d.error || t('error.kick'));
+        btn.disabled = false;
+      }
+      // The updated roster arrives over the socket.
+    } catch {
+      showError(t('error.connectionShort'));
+      btn.disabled = false;
+    }
+  });
+  return btn;
 }
 
 const COUNT_ROLES = [
@@ -372,6 +469,15 @@ function closeCardModal() {
 cardModal.addEventListener('click', closeCardModal); // tap anywhere to dismiss
 
 el('deal-btn').addEventListener('click', async () => {
+  // Offline seats are dealt a role too; make sure that's intended.
+  const offline = lastRoom ? offlineNames(lastRoom) : '';
+  if (offline) {
+    const ok = await confirmAction(t('confirm.offlineTitle'), t('confirm.offlineText', { names: offline }), {
+      okLabel: t('room.startAnyway'),
+      danger: false,
+    });
+    if (!ok) return;
+  }
   el('deal-btn').disabled = true;
   try {
     const res = await fetch(`/api/rooms/${CODE}/deal`, {
@@ -473,18 +579,35 @@ function resetCardToBack() {
   card.classList.remove('face-up');
   clearTimeout(hideTimer);
 }
+/** Face-down right now: no flip animation, ignores the lock (a new deal). */
+function snapFaceDown() {
+  card.classList.add('no-anim');
+  faceUp = false;
+  card.classList.remove('face-up');
+  clearTimeout(hideTimer);
+}
 
 // ---- Unveil (reversible switch) ----
 // Unveiling is now PUBLIC: it flips the card face-up locally (so it keeps
 // working even while the host sleeps) AND tells the server, so everyone at the
 // table sees this player's identity (icon + card). We keep the local flag too
 // for instant rendering and offline resilience.
-el('unveil-toggle').addEventListener('change', (e) => {
+el('unveil-toggle').addEventListener('change', async (e) => {
+  const toggle = e.target;
   if (defeated) {
-    e.target.checked = true;
+    toggle.checked = true;
     return;
   }
-  unveiled = e.target.checked;
+  if (toggle.checked) {
+    // Every phone will show this identity: ask first, switch off until confirmed.
+    toggle.checked = false;
+    const ok = await confirmAction(t('confirm.unveilTitle'), t('confirm.unveilText'), {
+      okLabel: t('room.unveil'),
+    });
+    if (!ok) return;
+    toggle.checked = true;
+  }
+  unveiled = toggle.checked;
   setUnveil(CODE, unveiled);
   if (unveiled) lockFaceUp();
   else hideCard();
@@ -505,13 +628,16 @@ async function pushUnveil(value) {
   }
 }
 
-// ---- Confirmation modal (reused by Restart and End Game) ----
+// ---- Confirmation modal (Unveil, Surrender, Remove, Start, Restart, End Game) ----
 const confirmModal = el('confirm-modal');
 let confirmResolve = null;
 
-function confirmAction(title, text) {
+function confirmAction(title, text, { okLabel = t('room.confirm'), danger = true } = {}) {
   el('confirm-title').textContent = title;
   el('confirm-text').textContent = text;
+  const okBtn = el('confirm-ok');
+  okBtn.textContent = okLabel;
+  okBtn.classList.toggle('danger', danger);
   confirmModal.classList.remove('hidden');
   return new Promise((resolve) => { confirmResolve = resolve; });
 }
@@ -622,6 +748,7 @@ el('close-btn').addEventListener('click', async () => {
 });
 
 onLocaleChange(() => {
+  if (roomLost) return; // static texts only; the stale table stays hidden
   if (ws && ws.readyState !== WebSocket.OPEN) connSub.textContent = t('room.reconnecting');
   if (!lastRoom) return;
   if (lastRoom.phase === 'dealt') renderRoleView(lastRoom);

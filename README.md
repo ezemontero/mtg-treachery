@@ -86,12 +86,16 @@ Then share the printed LAN URL / QR. Tips:
 1. Someone opens the app, enters their name and taps **Create room** → a **4-letter code** and a **QR code** appear.
 2. Everyone else scans the QR (or types the code) and enters their name.
 3. Once everyone is in (**4 to 8 players**), whoever created the room taps **Start**.
+   - Every seat in the room is dealt a role, so the creator can remove one with **✕** next to the
+     name (someone who joined twice, or left). Offline players are flagged before dealing.
+   - The room holds at most 8 players.
 4. Each player sees **their card face down**: tap it to flip it and see your role; tap again to hide it.
    - It **hides itself** after 10 seconds or when the phone locks / the app goes to the background.
    - The **Leader** is marked publicly for everyone (it's open information in the game).
-5. When you use your **Unveil** ability at the table, flip the **Unveil** switch:
-   your card stays face-up on your screen. Announce your identity to the table **out loud** —
-   the app doesn't tell the others. The switch is reversible (it only affects your own screen).
+5. When you use your **Unveil** ability at the table, flip the **Unveil** switch and confirm:
+   your card stays face-up and your identity becomes **public** — every phone shows your role icon,
+   and anyone can tap your name to see your card. Turning the switch off hides it again, but the
+   table has already seen it.
 
 ### Restart / End Game
 
@@ -108,6 +112,9 @@ While in the role view, whoever created the room has two extra controls:
   disconnect for ~30 s before starting, control passes to the next player automatically; if they
   come back in time, they get it back.
 - **Restarting the server = new game.** State lives in memory; if you kill the process, rooms are lost.
+  Players who were already dealt keep their card on their phone (it's cached), so the game at the
+  table can go on — the room screen says the room is gone; to deal again, create a new room. This
+  also covers hosts that sleep and lose memory, like Render's free tier.
 - **Roles are truly secret:** the server never sends a player another player's role. Not even the
   browser dev tools can reveal someone else's deal.
 
@@ -175,7 +182,7 @@ public/
 ## Scope
 
 This version does: create/join rooms, correct secret dealing, public Leader, card flip,
-reversible personal unveil, reconnection, restart and end game.
+public unveil (confirmed, reversible), surrender, removing lobby seats, reconnection, restart and end game.
 
 Left out (possible future improvements): marking eliminated players, automatically computing
 the winner, a Magic life counter, and persisting state to disk to survive restarts.

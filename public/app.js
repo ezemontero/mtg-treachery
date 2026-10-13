@@ -87,11 +87,14 @@ export async function findResumableRooms(slot) {
     if (!session?.token) { clearSession(code, slot); continue; }
     try {
       const res = await fetch(`/api/rooms/${code}`, { headers: { Authorization: 'Bearer ' + session.token } });
-      if (res.status === 404) { clearSession(code, slot); continue; } // room is gone
-      if (!res.ok) continue; // transient server error: keep the session
-      const data = await res.json();
-      if (!data.you) { clearSession(code, slot); continue; } // token no longer recognised
-      live.push({ code, name: session.name || data.you.name || '' });
+      if (res.status !== 404 && !res.ok) continue; // transient server error: keep the session
+      const data = res.ok ? await res.json() : null;
+      if (data?.you) { live.push({ code, name: session.name || data.you.name || '' }); continue; }
+      // The server no longer knows this seat (room gone, or the server restarted).
+      // A card from a recent deal is still worth going back to: the room page
+      // shows it offline. Anything else is stale.
+      if (getRecentRole(code, slot)) live.push({ code, name: session.name || '' });
+      else clearSession(code, slot);
     } catch {
       // Network error — don't destroy a possibly-valid session.
     }
@@ -141,6 +144,20 @@ export function getRole(code, slot) {
   }
 }
 
+/**
+ * How long after a deal a cached card still belongs to "the game at the table".
+ * Within this window a room the server lost (restart, sleep, redeploy) keeps
+ * showing your card; older caches are just leftovers.
+ */
+const RECENT_DEAL_MS = 6 * 60 * 60 * 1000;
+
+/** The cached role/card if it comes from a recent deal, or null. */
+export function getRecentRole(code, slot) {
+  const cached = getRole(code, slot);
+  if (!cached?.role || !cached.dealtAt) return null;
+  return Date.now() - cached.dealtAt < RECENT_DEAL_MS ? cached : null;
+}
+
 /** The unveil flag is private to this player; we keep it purely client-side. */
 export function getUnveil(code, slot) {
   return localStorage.getItem(scoped(UNVEIL_PREFIX + code.toUpperCase(), slot)) === '1';
@@ -178,35 +195,63 @@ async function postJson(url, body, token) {
   return { res, data };
 }
 
-/** Creates a room and navigates to the lobby. */
+/**
+ * Runs a create/join request with the screen's buttons locked. On a slow
+ * network (or a host waking up) people tap again, and every extra request is
+ * an extra seat. The buttons stay locked when the action navigates away.
+ * @param {HTMLButtonElement[]} buttons  every button that submits this screen
+ * @param {HTMLButtonElement} active     the tapped one (shows a spinner)
+ * @param {() => Promise<boolean>} action resolves true when it navigated away
+ */
+export async function lockWhile(buttons, active, action) {
+  if (buttons.some((b) => b.disabled)) return;
+  for (const b of buttons) b.disabled = true;
+  active.setAttribute('aria-busy', 'true');
+  let navigating = false;
+  try {
+    navigating = await action();
+  } finally {
+    if (!navigating) {
+      for (const b of buttons) b.disabled = false;
+      active.removeAttribute('aria-busy');
+    }
+  }
+}
+
+/** Creates a room and navigates to the lobby. Resolves true if it navigated. */
 export async function createRoom(name, rarity = 'U') {
   try {
     const { res, data } = await postJson('/api/rooms', { name, rarity });
-    if (!res.ok) return showError(data.error || t('error.create'));
+    if (!res.ok) { showError(data.error || t('error.create')); return false; }
     saveSession(data.roomCode, { token: data.token, playerId: data.playerId, name });
     // replace (not href) so 'back' from the room skips these entry screens -> Home.
     location.replace(withSlot(`/room/${data.roomCode}`));
+    return true;
   } catch {
     showError(t('error.connection'));
+    return false;
   }
 }
 
 /**
  * Joins a room. If a session is already saved, goes straight in (reconnection).
+ * Resolves true if it navigated.
  */
 export async function joinExisting(code, name) {
   code = code.toUpperCase();
   if (hasSession(code)) {
     location.replace(withSlot(`/room/${code}`));
-    return;
+    return true;
   }
   try {
     const { res, data } = await postJson(`/api/rooms/${code}/join`, { name });
-    if (!res.ok) return showError(data.error || t('error.join'));
+    if (!res.ok) { showError(data.error || t('error.join')); return false; }
     saveSession(code, { token: data.token, playerId: data.playerId, name });
     // replace (not href) so 'back' from the room skips these entry screens -> Home.
     location.replace(withSlot(`/room/${code}`));
+    return true;
   } catch {
     showError(t('error.connection'));
+    return false;
   }
 }

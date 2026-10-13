@@ -51,6 +51,13 @@
 
     <!-- ===================== MY ROLE VIEW ===================== -->
     <section id="view-role" class="hidden stack">
+      <!-- Shown when the server lost the room but this phone still has the card -->
+      <div id="lost-area" class="card hidden">
+        <div class="notice-title" data-i18n="room.lostTitle">This room is gone from the server</div>
+        <p class="notice-text" data-i18n="room.lostText">It probably restarted. Your card is still saved on this phone, so the game at the table can go on. To deal again, create a new room.</p>
+        <button id="leave-btn" class="secondary" data-i18n="room.leave">Leave room</button>
+      </div>
+
       <div class="role-stage">
         <div class="role-card no-anim" id="role-card">
           <div class="face back">
@@ -68,7 +75,7 @@
       <div class="card switch-row" id="unveil-area">
         <div class="switch-text">
           <span class="switch-label" data-i18n="room.unveil">Unveil</span>
-          <span class="switch-sub" data-i18n="room.unveilSub">Keeps your card face-up</span>
+          <span class="switch-sub" data-i18n="room.unveilSub">Everyone sees your card</span>
         </div>
         <label class="switch">
           <input type="checkbox" id="unveil-toggle" />
@@ -76,7 +83,7 @@
         </label>
       </div>
 
-      <div class="card">
+      <div class="card" id="players-card">
         <div class="role-counts" id="role-counts"></div>
         <ul class="players" id="players-role"></ul>
       </div>

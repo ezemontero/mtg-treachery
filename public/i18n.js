@@ -1,5 +1,6 @@
-// Client translations. The app always starts in en-US; the selector switches
-// the language for the current session only (never persisted across reloads).
+// Client translations. A new tab always starts in en-US; the selector switches
+// the language for the rest of that tab's session (sessionStorage), so it
+// survives moving between screens but not closing the tab.
 
 export const LOCALES = ['en-US', 'es-AR'];
 export const DEFAULT_LOCALE = 'en-US';
@@ -69,12 +70,20 @@ const dict = {
     'room.waitingAfter': ' to deal…',
     'room.dealerFallback': 'the room creator',
     'room.ready': '{n} players ready.',
-    'room.needPlayers': 'Treachery is for 4–8 players (there are {n}).',
+    'room.needOne': 'Need 1 more player.',
+    'room.needMany': 'Need {n} more players.',
+    'room.offline': 'Offline: {names}',
+    'room.startAnyway': 'Start anyway',
+    'room.kick': 'Remove',
+    'room.kickLabel': 'Remove {name}',
+    'room.lostTitle': 'This room is gone from the server',
+    'room.lostText': 'It probably restarted. Your card is still saved on this phone, so the game at the table can go on. To deal again, create a new room.',
+    'room.leave': 'Leave room',
     'room.flipHelp': 'Tap the card to flip it. It hides itself after 10 s.',
     'room.unveil': 'Unveil',
-    'room.unveilSub': 'Keeps your card face-up',
+    'room.unveilSub': 'Everyone sees your card',
     'room.surrender': 'Surrender',
-    'room.surrendered': 'Surrendered',
+    'room.defeated': 'Defeated',
     'room.count.traitor': 'Traitors',
     'room.count.assassin': 'Assassins',
     'room.count.guardian': 'Guardians',
@@ -94,7 +103,13 @@ const dict = {
     'confirm.endTitle': 'End game?',
     'confirm.endText': 'This closes the room and sends everyone back to the start. Continue?',
     'confirm.defeatTitle': 'Surrender?',
-    'confirm.defeatText': 'Your identity will be revealed to the table. Continue?',
+    'confirm.defeatText': 'You\'ll be marked as defeated and your identity revealed to the table. Accept?',
+    'confirm.unveilTitle': 'Unveil your identity?',
+    'confirm.unveilText': 'This will reveal your identity to every player.',
+    'confirm.kickTitle': 'Remove {name}?',
+    'confirm.kickText': 'They leave the room and can scan the QR again to rejoin.',
+    'confirm.offlineTitle': 'Someone is offline',
+    'confirm.offlineText': 'Offline: {names}. Starting deals a role to everyone in the room, connected or not. If someone isn\'t playing, remove them first with ✕.',
     'error.create': 'Could not create the room.',
     'error.join': 'Could not join the room.',
     'error.connection': 'Connection error with the server.',
@@ -103,6 +118,7 @@ const dict = {
     'error.dealAgain': 'Could not deal again.',
     'error.close': 'Could not close the room.',
     'error.defeat': 'Could not mark you as defeated.',
+    'error.kick': 'Could not remove the player.',
     'error.role': 'Could not fetch your role.',
     'server.unauth': 'Not authenticated in this room.',
     'server.notFound': 'Room not found.',
@@ -113,6 +129,10 @@ const dict = {
     'server.notDealt': 'Roles have not been dealt yet.',
     'server.dealerClose': 'Only the dealer can close the room.',
     'server.closed': 'The room is closed.',
+    'server.full': 'The room is full (8 players max).',
+    'server.dealerKick': 'Only the dealer can remove players.',
+    'server.kickSelf': 'You can\'t remove your own seat.',
+    'server.playerNotFound': 'Player not found.',
     'server.unknown': 'Unknown API route.',
     'server.badJson': 'Invalid JSON.',
     'server.internal': 'Internal error.',
@@ -181,12 +201,20 @@ const dict = {
     'room.waitingAfter': ' reparta…',
     'room.dealerFallback': 'quien creó la sala',
     'room.ready': '{n} jugadores listos.',
-    'room.needPlayers': 'Treachery es para 4–8 jugadores (hay {n}).',
+    'room.needOne': 'Falta 1 jugador.',
+    'room.needMany': 'Faltan {n} jugadores.',
+    'room.offline': 'Sin conexión: {names}',
+    'room.startAnyway': 'Empezar igual',
+    'room.kick': 'Sacar',
+    'room.kickLabel': 'Sacar a {name}',
+    'room.lostTitle': 'La sala ya no está en el servidor',
+    'room.lostText': 'Probablemente se reinició. Tu carta sigue guardada en este celular, así que la partida en la mesa puede seguir. Para repartir de nuevo, hay que crear una sala nueva.',
+    'room.leave': 'Salir de la sala',
     'room.flipHelp': 'Tocá la carta para darla vuelta. Se oculta sola a los 10 s.',
     'room.unveil': 'Revelar',
-    'room.unveilSub': 'Deja tu carta boca arriba',
+    'room.unveilSub': 'Todos ven tu carta',
     'room.surrender': 'Rendirse',
-    'room.surrendered': 'Se rindió',
+    'room.defeated': 'Derrotado',
     'room.count.traitor': 'Traidores',
     'room.count.assassin': 'Asesinos',
     'room.count.guardian': 'Guardianes',
@@ -206,7 +234,13 @@ const dict = {
     'confirm.endTitle': '¿Terminar la partida?',
     'confirm.endText': 'Cierra la sala y manda a todos al inicio. ¿Seguimos?',
     'confirm.defeatTitle': '¿Rendirte?',
-    'confirm.defeatText': 'Tu identidad se va a revelar en la mesa. ¿Seguimos?',
+    'confirm.defeatText': 'Te vamos a marcar como derrotado y tu identidad se revela en la mesa. ¿Aceptar?',
+    'confirm.unveilTitle': '¿Revelar tu identidad?',
+    'confirm.unveilText': 'Esto va a revelar tu identidad a todos los jugadores.',
+    'confirm.kickTitle': '¿Sacar a {name}?',
+    'confirm.kickText': 'Sale de la sala y puede volver a entrar escaneando el QR.',
+    'confirm.offlineTitle': 'Hay alguien sin conexión',
+    'confirm.offlineText': 'Sin conexión: {names}. Al empezar se reparte rol a todos los de la sala, conectados o no. Si alguien no juega, sacalo antes con ✕.',
     'error.create': 'No se pudo crear la sala.',
     'error.join': 'No se pudo unir a la sala.',
     'error.connection': 'Error de conexión con el servidor.',
@@ -215,6 +249,7 @@ const dict = {
     'error.dealAgain': 'No se pudo volver a repartir.',
     'error.close': 'No se pudo cerrar la sala.',
     'error.defeat': 'No se pudo marcarte como derrotado.',
+    'error.kick': 'No se pudo sacar al jugador.',
     'error.role': 'No se pudo obtener tu rol.',
     'server.unauth': 'No estás autenticado en esta sala.',
     'server.notFound': 'Sala no encontrada.',
@@ -225,6 +260,10 @@ const dict = {
     'server.notDealt': 'Todavía no se repartieron los roles.',
     'server.dealerClose': 'Solo quien reparte puede cerrar la sala.',
     'server.closed': 'La sala está cerrada.',
+    'server.full': 'La sala está llena (máximo 8 jugadores).',
+    'server.dealerKick': 'Solo quien reparte puede sacar jugadores.',
+    'server.kickSelf': 'No podés sacar tu propio asiento.',
+    'server.playerNotFound': 'Jugador no encontrado.',
     'server.unknown': 'Ruta de API desconocida.',
     'server.badJson': 'JSON inválido.',
     'server.internal': 'Error interno.',
@@ -241,6 +280,10 @@ const SERVER_ERRORS = {
   'Roles have not been dealt yet.': 'server.notDealt',
   'Only the dealer can close the room.': 'server.dealerClose',
   'The room is closed.': 'server.closed',
+  'The room is full (8 players max).': 'server.full',
+  'Only the dealer can remove players.': 'server.dealerKick',
+  "You can't remove your own seat.": 'server.kickSelf',
+  'Player not found.': 'server.playerNotFound',
   'Unknown API route.': 'server.unknown',
   'Invalid JSON.': 'server.badJson',
   'Internal error.': 'server.internal',
@@ -252,10 +295,22 @@ function normalize(value) {
   return LOCALES.includes(value) ? value : DEFAULT_LOCALE;
 }
 
-// The app always starts in en-US. A language change made from the selector
-// applies only to the current session (it is intentionally NOT persisted), so
-// every fresh load is en-US again regardless of the browser language.
-let locale = DEFAULT_LOCALE;
+// A new tab starts in en-US regardless of the browser language. A choice made
+// from the selector lives in sessionStorage: create/join/reload keep it, a new
+// tab doesn't. Lab phones (?slot=N) share one tab, so each slot gets its own key.
+const LOCALE_KEY = 'treachery:locale';
+
+function localeKey() {
+  let slot = '';
+  try { slot = (new URLSearchParams(location.search).get('slot') || '').trim(); } catch { /* no location */ }
+  return slot ? `${LOCALE_KEY}::${slot}` : LOCALE_KEY;
+}
+
+function savedLocale() {
+  try { return normalize(sessionStorage.getItem(localeKey())); } catch { return DEFAULT_LOCALE; }
+}
+
+let locale = savedLocale();
 
 export function getLocale() {
   return locale;
@@ -312,12 +367,12 @@ function emit() {
   for (const fn of listeners) fn(locale);
 }
 
-// A language change lives only for the current session — never persisted, so a
-// reload returns to en-US. See the `locale` initialization above.
+// A language change lasts for this tab's session. See savedLocale() above.
 export function setLocale(next) {
   const loc = normalize(next);
   if (loc === locale) return;
   locale = loc;
+  try { sessionStorage.setItem(localeKey(), loc); } catch { /* private mode: this page only */ }
   emit();
 }
 
